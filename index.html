@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RUNDROP — จองขนส่ง</title>
+  <meta name="description" content="RUNDROP แพลตฟอร์มขนส่งในไทย คำนวณราคาและสร้างออเดอร์ได้ทันที">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#booking">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="48" height="48">
+          <rect width="48" height="48" rx="10" fill="#e10600"/>
+          <path d="M10 30h5.4l2-5.2h10.2l2.2 5.2H38" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M15.2 24.8 18 17h11.2l3.2 7.8" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="17" cy="32.2" r="2.2" fill="#111"/>
+          <circle cx="32.6" cy="32.2" r="2.2" fill="#111"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <strong>RUNDROP</strong>
+        <small>โลจิสติกส์</small>
+      </span>
+    </a>
+    <p class="header-note">ส่งด่วนในเมือง</p>
+  </header>
+
+  <main>
+    <section class="hero" id="booking">
+      <div class="hero-copy">
+        <p class="eyebrow">จองขนส่ง</p>
+        <h1>ส่งของวันนี้ รู้ราคาก่อนจอง</h1>
+        <p class="lede">ระบุจุดรับ จุดส่ง และประเภทรถ RUNDROP คำนวณค่าส่งให้ก่อนสร้างออเดอร์</p>
+        <ul class="assurances">
+          <li>ประกันสินค้า</li>
+          <li>ติดตามสถานะ</li>
+          <li>ส่งถึงที่</li>
+        </ul>
+      </div>
+
+      <form class="booking-card" id="booking-form" novalidate>
+        <h2>รายละเอียดการจัดส่ง</h2>
+
+        <div class="field">
+          <label for="pickup">จุดรับสินค้า</label>
+          <input id="pickup" name="pickup" type="text" autocomplete="street-address" placeholder="อาคาร โกดัง หรือที่อยู่" required>
+        </div>
+
+        <div class="field">
+          <label for="destination">จุดส่งสินค้า</label>
+          <input id="destination" name="destination" type="text" autocomplete="street-address" placeholder="ที่อยู่ปลายทาง" required>
+        </div>
+
+        <div class="field">
+          <label for="vehicle">ประเภทรถ</label>
+          <select id="vehicle" name="vehicle" required>
+            <option value="" selected>เลือกประเภทรถ</option>
+            <option value="motorcycle">รถจักรยานยนต์</option>
+            <option value="car">รถยนต์</option>
+            <option value="pickup">รถกระบะ</option>
+            <option value="large-4w">รถ 4 ล้อใหญ่</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="contact-name">ชื่อผู้ติดต่อ</label>
+          <input id="contact-name" name="contact-name" type="text" autocomplete="name" placeholder="ชื่อ-นามสกุล" required>
+        </div>
+
+        <div class="field">
+          <label for="phone">เบอร์โทรศัพท์</label>
+          <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="08xxxxxxxx" required>
+        </div>
+
+        <div class="estimate" aria-live="polite">
+          <p class="estimate-label">ราคาประเมิน</p>
+          <p class="estimate-price" id="estimate-price">—</p>
+          <p class="estimate-detail" id="estimate-detail">กดคำนวณราคาเพื่อดูค่าส่ง</p>
+        </div>
+
+        <p class="form-error" id="form-error" hidden></p>
+
+        <div class="actions">
+          <button class="calc-btn" id="calculate-price" type="button">คำนวณราคา</button>
+          <button class="order-btn" id="create-order" type="submit">สร้างออเดอร์</button>
+        </div>
+
+        <div class="confirmation" id="confirmation" hidden>
+          <p class="confirmation-kicker">สร้างออเดอร์แล้ว</p>
+          <p class="confirmation-ref">เลขออเดอร์ <strong id="booking-ref"></strong></p>
+          <p id="confirmation-summary"></p>
+          <button class="text-btn" type="button" id="new-booking">สร้างออเดอร์ใหม่</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>RUNDROP · ขนส่งในไทย รู้ราคาก่อนส่ง</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
