@@ -6,7 +6,6 @@
   <title>RunDrop - หน้าคนขับ</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <script src="config.js"></script>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800">
   <div class="max-w-md mx-auto p-4 space-y-4">
@@ -37,16 +36,8 @@
     let pollTimer = null;
 
     function setMsg(text) {
-  document.getElementById('statusMsg').textContent = text;
-  document.getElementById('debugBox')?.remove();
-  if (text) {
-    const d = document.createElement('pre');
-    d.id = 'debugBox';
-    d.className = 'text-[10px] text-red-600 whitespace-pre-wrap break-all';
-    d.textContent = 'DEBUG: ' + text;
-    document.body.appendChild(d);
-  }
-}
+      document.getElementById('statusMsg').textContent = text;
+    }
 
     async function api(path, options = {}) {
       const res = await fetch(path, {
@@ -118,21 +109,18 @@
       loadOrders();
     }
 
+    // ปุ่มออนไลน์ยังไม่เชื่อมเซิร์ฟเวอร์ (รอ api/driver/online.js)
     document.getElementById('onlineToggle').addEventListener('change', (e) => {
-      // ยังไม่มี API /api/driver/online ในขั้นนี้ จึงย้อนค่ากลับ
       e.target.checked = !e.target.checked;
-      setMsg('การเปิดออนไลน์ยังไม่เชื่อมกับเซิร์ฟเวอร์ (ต้องทำ api/driver/online.js ก่อน)');
+      setMsg('การเปิดออนไลน์ยังไม่เชื่อมกับเซิร์ฟเวอร์');
     });
 
     async function init() {
       try {
-        window.onerror = (m) => setMsg('JS error: ' + m);
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
 
         idToken = liff.getIDToken();
-        const profile = await liff.getProfile();
-        console.log('LINE userId:', profile.userId);
 
         const me = await api('/api/driver/me');
         document.getElementById('driverName').textContent = me.name;
