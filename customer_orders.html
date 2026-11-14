@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RunDrop - บริการเรียกรถ รับ-ส่งพัสดุ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="config.js"></script>
+  <style>
+    .vehicle-card.selected {
+      border-color: #16a34a;
+      background-color: #fefce8;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+
+  <!-- Header -->
+<div class="w-full bg-white border-b border-gray-200">
+  <div class="max-w-2xl mx-auto px-4 pt-4 pb-3 text-center">
+    <img src="banner.jpg" alt="RunDrop Banner"
+      class="block mx-auto w-full max-w-sm md:max-w-md h-auto rounded-2xl shadow-md">
+    <h1 class="text-xl md:text-2xl font-black text-green-900 mt-3 leading-tight">RunDrop บริการเรียกรถ รับ-ส่งพัสดุ</h1>
+    <p class="text-[11px] md:text-xs font-bold text-green-800 leading-tight">แพลตฟอร์มไทย 100% ค่าธรรมเนียมเพียง 10% วิ่งได้ 24 ชม. 🚀</p>
+  </div>
+</div>
+
+  <!-- Main Booking Form -->
+  <main class="max-w-md mx-auto p-4 pb-12">
+    <div class="bg-white rounded-2xl shadow-md p-4 space-y-3">
+      <div class="border-b pb-2">
+        <h2 class="text-base font-bold text-green-900">📍 รายละเอียดการจัดส่ง</h2>
+      </div>
+
+      <form id="bookingForm" class="space-y-3">
+
+        <!-- ชื่อและเบอร์ -->
+        <div>
+          <label class="block text-xs font-bold mb-1">
+            ชื่อผู้ส่ง / เบอร์โทรศัพท์ *
+            <span id="firstTimePhoneBadge" class="text-[10px] text-green-700 font-normal hidden">(กรอกครั้งแรกเท่านั้น)</span>
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="senderName" required placeholder="ชื่อผู้ติดต่อ"
+              class="border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+            <input type="tel" id="senderPhone" required placeholder="เบอร์โทรศัพท์"
+              class="border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+          </div>
+        </div>
+
+        <!-- จุดรับสินค้า -->
+        <div class="relative">
+          <div class="flex items-center gap-1.5">
+           <span class="inline-flex w-4 h-4 rounded-full bg-green-600 ring-2 ring-green-200 items-center justify-center">
+           <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+           </span>
+           <label class="text-xs font-bold">จุดรับสินค้า (Pickup Location) *</label>
+            <button type="button" onclick="openMapModal('pickup')"
+              class="text-[11px] bg-yellow-100 text-green-800 font-bold px-2 py-0.5 rounded hover:bg-yellow-200 transition">
+              🗺️ เลือกจากแผนที่ / GPS
+            </button>
+          </div>
+          <textarea id="pickupLocation" required rows="2" placeholder="พิมพ์ชื่อสถานที่ เช่น Future Park หรือกดเลือกจากแผนที่"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600"></textarea>
+        </div>
+
+        <!-- จุดส่งสินค้า -->
+        <div class="relative">
+          <div class="flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-red-600" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+            </svg>
+           <label class="text-xs font-bold">จุดส่งสินค้า (Dropoff Location) *</label>
+            <button type="button" onclick="openMapModal('dropoff')"
+              class="text-[11px] bg-yellow-100 text-green-800 font-bold px-2 py-0.5 rounded hover:bg-yellow-200 transition">
+              🗺️ เลือกจากแผนที่ / GPS
+            </button>
+          </div>
+          <textarea id="dropoffLocation" required rows="2" placeholder="พิมพ์ชื่อสถานที่ เช่น Future Park หรือกดเลือกจากแผนที่"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600"></textarea>
+        </div>
+
+        <!-- หมายเหตุ -->
+        <div>
+          <label class="block text-xs font-bold mb-1">หมายเหตุ / โน้ตถึงคนขับ (Remark)</label>
+          <input type="text" id="remark" placeholder="เช่น ระวังของแตกง่าย, วางไว้หน้าบ้าน"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <!-- เลือกประเภทรถ -->
+        <div>
+          <label class="block text-xs font-bold mb-1.5">เลือกประเภทรถบริการ *</label>
+          <div id="vehicleCardsContainer" class="grid grid-cols-2 gap-2">
+            <div class="text-xs text-gray-400 col-span-2 text-center py-2">กำลังโหลดประเภทรถ...</div>
+          </div>
+          <input type="hidden" id="selectedVehicleType">
+        </div>
+
+        <!-- ระยะทาง (ล็อก คำนวณอัตโนมัติ) -->
+        <div>
+          <label class="block text-xs font-bold mb-1">ระยะทางโดยประมาณ (กิโลเมตร)</label>
+          <input type="number" id="estimatedKm" readonly placeholder="เลือกจุดรับและจุดส่งจากแผนที่"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-gray-100 text-gray-700 cursor-not-allowed focus:outline-none">
+          <p id="distanceNote" class="text-[9px] text-gray-500 mt-0.5 hidden"></p>
+        </div>
+
+        <!-- ราคาประเมิน -->
+        <div class="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 text-center space-y-0.5">
+          <span class="text-[11px] font-bold text-gray-600">ค่าบริการโดยประมาณ</span>
+          <div class="text-2xl font-black text-green-700" id="priceDisplay">0 ฿</div>
+          <p class="text-[9px] text-gray-500">*ค่าบริการคำนวณตามเรทมาตรฐานของประเภทรถ</p>
+        </div>
+
+        <button type="submit" id="bookBtn"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow-md transition text-sm">
+          ยืนยันการเรียกรถ
+        </button>
+      </form>
+    </div>
+
+    <div class="text-center mt-4">
+      <p class="text-xs text-gray-500">คุณต้องการขับรถกับเรา?</p>
+      <a href="driver-register.html" class="inline-block mt-0.5 text-xs font-bold text-green-700 hover:underline">
+        👉 สมัครเป็นพาร์ทเนอร์คนขับ RunDrop ที่นี่
+      </a>
+    </div>
+  </main>
+
+  <!-- Modal แผนที่ -->
+  <div id="mapModal" class="fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4 hidden z-50">
+    <div class="bg-white rounded-2xl max-w-md w-full p-4 space-y-3 shadow-2xl">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-bold text-green-900 text-sm">🗺️ เลือกตำแหน่งจากแผนที่</h3>
+        <button type="button" onclick="closeMapModal()" class="text-gray-400 hover:text-gray-600 font-bold text-lg">&times;</button>
+      </div>
+
+      <p class="text-xs text-gray-600">ค้นหาสถานที่ หรือแตะบนแผนที่เพื่อปักหมุด ลากหมุดเพื่อปรับตำแหน่งได้</p>
+
+      <!-- ช่องค้นหาสถานที่ -->
+      <div class="relative">
+        <input type="text" id="mapSearchInput" placeholder="ค้นหาสถานที่ เช่น Future Park"
+          class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        <div id="mapSearchResults"
+          class="hidden absolute z-[1000] bg-white border border-gray-300 rounded-lg shadow-lg mt-1 w-full max-h-48 overflow-auto"></div>
+      </div>
+
+      <button type="button" onclick="useCurrentLocation()"
+        class="w-full bg-yellow-400 hover:bg-yellow-500 text-green-900 font-bold py-2 rounded-lg text-xs shadow transition">
+        📍 ไปที่ตำแหน่ง GPS ของฉัน
+      </button>
+
+      <div id="pickerMap" class="h-64 w-full rounded-xl border border-gray-300"></div>
+
+      <p id="mapPreviewText" class="text-xs font-bold text-gray-700 break-all text-center">ยังไม่ได้เลือกพิกัด</p>
+
+      <div class="flex space-x-2 pt-1">
+        <button type="button" onclick="closeMapModal()"
+          class="w-1/2 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 rounded-lg text-xs transition">
+          ยกเลิก
+        </button>
+        <button type="button" onclick="confirmLocation()"
+          class="w-1/2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-xs transition">
+          ยืนยันตำแหน่งนี้
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- ตัวแปรหลัก ----------
+    let vehicleRatesData = [];
+    let activeTargetField = '';
+
+    // พิกัดที่ลูกค้าเลือก (จากแผนที่ หรือ autocomplete)
+    const coords = { pickup: null, dropoff: null };
+
+    const vehicleMeta = {
+      'Motorcycle':   { icon: '🛵', name: 'มอเตอร์ไซค์' },
+      'Sedan':        { icon: '🚗', name: 'รถเก๋ง' },
+      'Hatchback':    { icon: '🚙', name: 'รถแฮทช์แบ็ก' },
+      'SUV':          { icon: '🚘', name: 'รถ SUV' },
+      'Pickup':       { icon: '🛻', name: 'รถกระบะทั่วไป' },
+      'Box Pickup':   { icon: '🚚', name: 'กระบะตู้ทึบ' },
+      'Fence Pickup': { icon: '🚛', name: 'รถกระบะคอก' },
+      'Box Truck':    { icon: '🚛', name: 'รถบรรทุกตู้ทึบ' }
+    };
+
+    // ---------- โหลดเรทรถจาก Supabase ----------
+    async function loadRates() {
+      const container = document.getElementById('vehicleCardsContainer');
+      container.innerHTML = '<div class="text-xs text-gray-400 col-span-2 text-center py-2">กำลังโหลดประเภทรถ...</div>';
+
+      try {
+        const { data, error } = await _supabase
+          .from('vehicle_rates')
+          .select('*')
+          .eq('active', true)
+          .order('id', { ascending: true });
+
+        if (error) throw error;
+
+        vehicleRatesData = data || [];
+        container.innerHTML = '';
+
+        if (vehicleRatesData.length === 0) {
+          container.innerHTML = '<div class="text-xs text-red-500 col-span-2 text-center">ยังไม่มีข้อมูลเรทรถที่เปิดใช้งาน</div>';
+          return;
+        }
+
+        vehicleRatesData.forEach((rate) => {
+          const meta = vehicleMeta[rate.vehicle_type] || { icon: '🚗', name: rate.vehicle_type };
+
+          const card = document.createElement('div');
+          card.className = 'vehicle-card border-2 border-gray-200 rounded-xl p-2.5 cursor-pointer hover:border-green-500 transition flex items-center space-x-2 bg-white';
+          card.dataset.type = rate.vehicle_type;
+          card.addEventListener('click', () => selectVehicle(rate.vehicle_type, card));
+
+          const icon = document.createElement('div');
+          icon.className = 'text-2xl';
+          icon.textContent = meta.icon;
+
+          const textWrap = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'font-bold text-gray-800 text-xs';
+          title.textContent = meta.name;
+          const sub = document.createElement('div');
+          sub.className = 'text-[9px] text-gray-400';
+          sub.textContent = rate.vehicle_type;
+          textWrap.appendChild(title);
+          textWrap.appendChild(sub);
+
+          card.appendChild(icon);
+          card.appendChild(textWrap);
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error('loadRates error:', err.message, err.code || '');
+        container.innerHTML = '<div class="text-xs text-red-500 col-span-2 text-center">โหลดข้อมูลรถไม่สำเร็จ กรุณาดู Console</div>';
+      }
+    }
+
+    // ---------- เลือกประเภทรถ ----------
+    function selectVehicle(type, element) {
+      document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('selected'));
+      element.classList.add('selected');
+      document.getElementById('selectedVehicleType').value = type;
+      calculateEstimate();
+    }
+
+    // ---------- คำนวณราคา ----------
+function calculateEstimate() {
+  const selectedType = document.getElementById('selectedVehicleType').value;
+  const km = parseFloat(document.getElementById('estimatedKm').value) || 0;
+  const display = document.getElementById('priceDisplay');
+  const found = vehicleRatesData.find(r => r.vehicle_type === selectedType);
+
+  if (found && km > 0) {
+    const base = Number(found.base_fare) || 0;
+    const pricePerKm = Number(found.price_per_km) || 0;
+    const minimumPrice = Number(found.minimum_price) || 0;
+    let total = base + km * pricePerKm;
+    if (total < minimumPrice) total = minimumPrice;
+    display.textContent = Math.round(total) + ' ฿';
+  } else {
+    display.textContent = '0 ฿';
+  }
+}
+// ---------- Surcharge ตามช่วงเวลา ----------
+const PEAK_SURCHARGE_RATE = 0.15; // 15% (ปรับได้ระหว่าง 0.10 – 0.20)
+const PEAK_RANGES = [
+  { start: 7 * 60,  end: 9 * 60 },   // 07:00 – 09:00
+  { start: 17 * 60, end: 20 * 60 }   // 17:00 – 20:00
+];
+
+function getSurchargeRate(date = new Date()) {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  const isPeak = PEAK_RANGES.some(r => minutes >= r.start && minutes < r.end);
+  return isPeak ? PEAK_SURCHARGE_RATE : 0;
+}
+
+    // ---------- ระยะทางตามถนน (OSRM) ----------
+    let routeRequestId = 0;
+
+    function haversineKm(a, b) {
+      const R = 6371;
+      const toRad = d => d * Math.PI / 180;
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const h = Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    }
+
+    async function fetchRouteKm(from, to) {
+      // OSRM ใช้ลำดับ lng,lat
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
+      const data = await res.json();
+      if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
+        throw new Error('OSRM no route: ' + data.code);
+      }
+      return data.routes[0].distance / 1000; // เมตร -> กิโลเมตร
+    }
+
+    function setDistanceNote(text) {
+      const note = document.getElementById('distanceNote');
+      note.textContent = text;
+      note.classList.remove('hidden');
+    }
+
+    async function updateDistanceFromCoords() {
+      const kmInput = document.getElementById('estimatedKm');
+
+      if (!coords.pickup || !coords.dropoff) {
+        kmInput.value = '';
+        setDistanceNote('เลือกจุดรับและจุดส่งจากแผนที่หรือค้นหาสถานที่เพื่อคำนวณระยะทาง');
+        calculateEstimate();
+        return;
+      }
+
+      const reqId = ++routeRequestId;
+      kmInput.value = '';
+      setDistanceNote('กำลังคำนวณระยะทางตามถนน...');
+
+      try {
+        const km = await fetchRouteKm(coords.pickup, coords.dropoff);
+        if (reqId !== routeRequestId) return;
+        kmInput.value = (Math.round(km * 10) / 10).toFixed(1);
+        setDistanceNote('ระยะทางตามถนน คำนวณอัตโนมัติ');
+      } catch (err) {
+        console.error('OSRM error:', err);
+        if (reqId !== routeRequestId) return;
+        const straight = haversineKm(coords.pickup, coords.dropoff);
+        const km = Math.max(1, Math.round(straight * 1.3 * 10) / 10);
+        kmInput.value = km.toFixed(1);
+        setDistanceNote('ระยะเป็นค่าประมาณ (ไม่สามารถคำนวณระยะตามถนนได้)');
+      }
+
+      calculateEstimate();
+    }
+
+    // ---------- Modal แผนที่ (Leaflet + OpenStreetMap) ----------
+    let pickerMap = null;
+    let pickerMarker = null;
+    let pickedLatLng = null;
+    const DEFAULT_CENTER = [13.7563, 100.5018]; // กรุงเทพฯ
+
+    function openMapModal(targetField) {
+      activeTargetField = targetField;
+      pickedLatLng = null;
+
+      if (pickerMarker) {
+        pickerMarker.remove();
+        pickerMarker = null;
+      }
+      document.getElementById('mapPreviewText').textContent = 'ยังไม่ได้เลือกพิกัด';
+      document.getElementById('mapSearchInput').value = '';
+      renderMapSearchResults([]);
+
+      const modal = document.getElementById('mapModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      setTimeout(() => {
+        if (!pickerMap) {
+          pickerMap = L.map('pickerMap').setView(DEFAULT_CENTER, 15);
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+          }).addTo(pickerMap);
+          pickerMap.on('click', (e) => setPickedPoint(e.latlng.lat, e.latlng.lng));
+        } else {
+          pickerMap.invalidateSize();
+        }
+      }, 150);
+    }
+
+    function closeMapModal() {
+      const modal = document.getElementById('mapModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function setPickedPoint(lat, lng) {
+      pickedLatLng = { lat, lng };
+
+      if (!pickerMarker) {
+        pickerMarker = L.marker([lat, lng], { draggable: true }).addTo(pickerMap);
+        pickerMarker.on('dragend', (e) => {
+          const p = e.target.getLatLng();
+          setPickedPoint(p.lat, p.lng);
+        });
+      } else {
+        pickerMarker.setLatLng([lat, lng]);
+      }
+
+      document.getElementById('mapPreviewText').textContent =
+        `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+
+    function useCurrentLocation() {
+      if (!navigator.geolocation) {
+        alert('เบราว์เซอร์ของคุณไม่รองรับ GPS');
+        return;
+      }
+
+      document.getElementById('mapPreviewText').textContent = 'กำลังค้นหาตำแหน่ง...';
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          if (pickerMap) pickerMap.setView([lat, lng], 17);
+          setPickedPoint(lat, lng);
+        },
+        (err) => {
+          console.error('GPS error:', err);
+          alert('ไม่สามารถดึงตำแหน่งได้ กรุณาอนุญาต Location ในเบราว์เซอร์');
+          document.getElementById('mapPreviewText').textContent = 'ยังไม่ได้เลือกพิกัด';
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    function confirmLocation() {
+      if (!pickedLatLng) {
+        alert('กรุณาแตะบนแผนที่หรือกดปุ่ม GPS ก่อน');
+        return;
+      }
+
+      const { lat, lng } = pickedLatLng;
+      const text = `พิกัด: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+      if (activeTargetField === 'pickup') {
+        coords.pickup = { lat, lng };
+        document.getElementById('pickupLocation').value = text;
+      } else if (activeTargetField === 'dropoff') {
+        coords.dropoff = { lat, lng };
+        document.getElementById('dropoffLocation').value = text;
+      }
+
+      closeMapModal();
+      updateDistanceFromCoords();
+    }
+
+    // ---------- ค้นหาสถานที่ในกล่องแผนที่ (Nominatim) ----------
+    let mapSearchTimer = null;
+
+    async function searchInMap(query) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=th&accept-language=th&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Nominatim HTTP ' + res.status);
+      return res.json();
+    }
+
+    function renderMapSearchResults(items) {
+      const box = document.getElementById('mapSearchResults');
+      box.innerHTML = '';
+      if (!items.length) {
+        box.classList.add('hidden');
+        return;
+      }
+      items.forEach((place) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'block w-full text-left px-2 py-1.5 text-xs hover:bg-yellow-50 border-b last:border-b-0';
+        row.textContent = place.display_name;
+        row.addEventListener('click', () => goToPlace(place));
+        box.appendChild(row);
+      });
+      box.classList.remove('hidden');
+    }
+
+    function goToPlace(place) {
+      const lat = parseFloat(place.lat);
+      const lng = parseFloat(place.lon);
+      if (pickerMap) pickerMap.setView([lat, lng], 17);
+      setPickedPoint(lat, lng);
+      document.getElementById('mapSearchResults').classList.add('hidden');
+      document.getElementById('mapSearchInput').value = place.display_name;
+    }
+
+    function setupMapSearch() {
+      const input = document.getElementById('mapSearchInput');
+      input.addEventListener('input', () => {
+        clearTimeout(mapSearchTimer);
+        const q = input.value.trim();
+        if (q.length < 3) {
+          renderMapSearchResults([]);
+          return;
+        }
+        mapSearchTimer = setTimeout(async () => {
+          try {
+            renderMapSearchResults(await searchInMap(q));
+          } catch (err) {
+            console.error('map search error:', err);
+            renderMapSearchResults([]);
+          }
+        }, 500);
+      });
+    }
+
+    // ---------- ค้นหาสถานที่ในช่องข้อความ (Nominatim) ----------
+    let searchTimer = null;
+
+    function showSuggestions(field, items) {
+      const box = document.getElementById(field + 'Suggestions');
+      box.innerHTML = '';
+      if (!items.length) {
+        box.classList.add('hidden');
+        return;
+      }
+      items.forEach((place) => {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'block w-full text-left px-2 py-1.5 text-xs hover:bg-yellow-50 border-b last:border-b-0';
+        row.textContent = place.display_name;
+        row.addEventListener('click', () => selectPlace(field, place));
+        box.appendChild(row);
+      });
+      box.classList.remove('hidden');
+    }
+
+    function selectPlace(field, place) {
+      coords[field] = { lat: parseFloat(place.lat), lng: parseFloat(place.lon) };
+      document.getElementById(field + 'Location').value = place.display_name;
+      document.getElementById(field + 'Suggestions').classList.add('hidden');
+      updateDistanceFromCoords();
+    }
+
+    function setupPlaceSearch(field) {
+      const input = document.getElementById(field + 'Location');
+      const box = document.createElement('div');
+      box.id = field + 'Suggestions';
+      box.className = 'hidden absolute z-40 bg-white border border-gray-300 rounded-lg shadow-lg mt-1 w-full max-h-48 overflow-auto';
+      input.parentElement.appendChild(box);
+
+      input.addEventListener('input', () => {
+        coords[field] = null;
+        updateDistanceFromCoords();
+        clearTimeout(searchTimer);
+
+        const q = input.value.trim();
+        if (q.length < 3) {
+          showSuggestions(field, []);
+          return;
+        }
+        searchTimer = setTimeout(async () => {
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=th&accept-language=th&q=${encodeURIComponent(q)}`);
+            if (!res.ok) throw new Error('Nominatim HTTP ' + res.status);
+            showSuggestions(field, await res.json());
+          } catch (err) {
+            console.error('search error:', err);
+            showSuggestions(field, []);
+          }
+        }, 500);
+      });
+    }
+
+    // ---------- บันทึกการเรียกรถลง orders ----------
+    async function submitBooking(e) {
+      e.preventDefault();
+
+      const selectedType = document.getElementById('selectedVehicleType').value;
+      if (!selectedType) {
+        alert('กรุณาเลือกประเภทรถบริการด้วยครับ');
+        return;
+      }
+
+      const name = document.getElementById('senderName').value.trim();
+      const phone = document.getElementById('senderPhone').value.trim();
+      const pickup = document.getElementById('pickupLocation').value.trim();
+      const dropoff = document.getElementById('dropoffLocation').value.trim();
+      const remark = document.getElementById('remark').value.trim();
+      const km = parseFloat(document.getElementById('estimatedKm').value) || 0;
+      const price = parseInt(document.getElementById('priceDisplay').textContent, 10) || 0;
+
+      if (!name || !phone) {
+        alert('กรุณากรอกชื่อและเบอร์โทรศัพท์');
+        return;
+      }
+      if (!coords.pickup || !coords.dropoff) {
+        alert('กรุณาเลือกจุดรับและจุดส่งจากแผนที่หรือจากรายการค้นหา เพื่อให้ระบบคำนวณระยะทางและราคา');
+        return;
+      }
+      if (!km || km <= 0 || price <= 0) {
+        alert('ไม่สามารถคำนวณราคาได้ กรุณาลองเลือกจุดใหม่');
+        return;
+      }
+
+      const btn = document.getElementById('bookBtn');
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่งข้อมูล...';
+
+      try {
+        const { error } = await _supabase.from('orders').insert([{
+          customer_name: name,
+          phone: phone,
+          vehicle_type: selectedType,
+          pickup_place: pickup,
+          destination: dropoff,
+          distance_km: km,
+          price: price,
+          status: 'NEW',
+          tracking_code: generateTrackingCode(),
+          customer_note: remark,
+          pickup_lat: coords.pickup.lat,
+          pickup_lng: coords.pickup.lng,
+          dropoff_lat: coords.dropoff.lat,
+          dropoff_lng: coords.dropoff.lng
+        }]);
+
+        if (error) throw error;
+
+        localStorage.setItem('rundrop_sender_name', name);
+        localStorage.setItem('rundrop_sender_phone', phone);
+
+        alert('บันทึกการเรียกรถเรียบร้อย! ระบบกำลังค้นหาคนขับ...');
+        resetForm();
+      } catch (err) {
+        console.error('submitBooking error:', err.message, err.code || '');
+        alert('ไม่สามารถบันทึกการเรียกรถได้ กรุณาลองใหม่อีกครั้ง');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'ยืนยันการเรียกรถ';
+      }
+    }
+
+    // ---------- รหัสติดตามงาน ----------
+    function generateTrackingCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = 'RD-';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function resetForm() {
+      document.getElementById('pickupLocation').value = '';
+      document.getElementById('dropoffLocation').value = '';
+      document.getElementById('remark').value = '';
+      document.getElementById('selectedVehicleType').value = '';
+      document.getElementById('priceDisplay').textContent = '0 ฿';
+      coords.pickup = null;
+      coords.dropoff = null;
+      updateDistanceFromCoords();
+      document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('selected'));
+    }
+
+    // ---------- เริ่มต้นหน้า ----------
+    document.addEventListener('DOMContentLoaded', () => {
+      loadRates();
+      setupPlaceSearch('pickup');
+      setupPlaceSearch('dropoff');
+      setupMapSearch();
+      document.getElementById('bookingForm').addEventListener('submit', submitBooking);
+
+      const savedName = localStorage.getItem('rundrop_sender_name');
+      const savedPhone = localStorage.getItem('rundrop_sender_phone');
+      const badge = document.getElementById('firstTimePhoneBadge');
+
+      if (savedName && savedPhone) {
+        document.getElementById('senderName').value = savedName;
+        document.getElementById('senderPhone').value = savedPhone;
+        badge.classList.add('hidden');
+      } else {
+        badge.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

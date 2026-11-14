@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RunDrop - สมัครเป็นพาร์ทเนอร์คนขับ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+
+  <!-- Header -->
+  <div class="w-full bg-white border-b border-gray-200">
+    <div class="max-w-2xl mx-auto px-4 pt-4 pb-3 text-center">
+      <img src="banner.jpg" alt="RunDrop Banner"
+        class="block mx-auto w-full max-w-sm md:max-w-md h-auto rounded-2xl shadow-md">
+      <h1 class="text-xl md:text-2xl font-black text-green-900 mt-3 leading-tight">สมัครเป็นพาร์ทเนอร์คนขับ RunDrop</h1>
+      <p class="text-[11px] md:text-xs font-bold text-green-800 leading-tight">กรอกข้อมูลและอัปโหลดเอกสารให้ครบ ทีมงานจะติดต่อกลับ</p>
+    </div>
+  </div>
+
+  <main class="max-w-md mx-auto p-4 pb-12">
+    <div class="bg-white rounded-2xl shadow-md p-4 space-y-4">
+
+      <form id="driverForm" class="space-y-4">
+
+        <!-- ข้อมูลส่วนตัว -->
+        <h2 class="text-base font-bold text-green-900 border-b pb-2">ข้อมูลส่วนตัว</h2>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">ชื่อ-นามสกุล *</label>
+          <input type="text" id="fullName" required placeholder="ชื่อ-นามสกุลตามบัตรประชาชน"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">เบอร์โทรศัพท์ *</label>
+          <input type="tel" id="phone" required placeholder="0812345678"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">อีเมล</label>
+          <input type="email" id="email" placeholder="example@email.com"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">ประเภทรถที่ขับ *</label>
+          <select id="vehicleType" required
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-white focus:outline-none focus:border-green-600">
+            <option value="">-- เลือกประเภทรถ --</option>
+            <option value="Motorcycle">มอเตอร์ไซค์ (Motorcycle)</option>
+            <option value="Sedan">รถเก๋ง (Sedan)</option>
+            <option value="Hatchback">รถแฮทช์แบ็ก (Hatchback)</option>
+            <option value="SUV">รถ SUV (SUV)</option>
+            <option value="Pickup">รถกระบะทั่วไป (Pickup)</option>
+            <option value="Box Pickup">กระบะตู้ทึบ (Box Pickup)</option>
+            <option value="Fence Pickup">รถกระบะคอก (Fence Pickup)</option>
+            <option value="Box Truck">รถบรรทุกตู้ทึบ (Box Truck)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">ทะเบียนรถ *</label>
+          <input type="text" id="plateNumber" required placeholder="เช่น กข 1234 กทม"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <!-- อัปโหลดเอกสาร -->
+        <h2 class="text-base font-bold text-green-900 border-b pb-2 pt-2">อัปโหลดเอกสารยืนยันตัวตน</h2>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">1. รูปถ่ายบัตรประชาชน *</label>
+          <input type="file" id="idCardPhoto" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">2. รูปถ่ายใบขับขี่ *</label>
+          <input type="file" id="licensePhoto" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">3. ใบตรวจประวัติอาชญากรรม *</label>
+          <input type="file" id="criminalRecordPhoto" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+        </div>
+
+        <div>
+        <label class="block text-xs font-bold mb-1">4. รูปถ่ายหน้าคนขับ *</label>
+         <label class="flex items-center justify-center gap-2 w-full cursor-pointer bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2.5 rounded-lg transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+       <circle cx="12" cy="13" r="4"/>
+        </svg>
+        ถ่ายรูปหน้าคนขับ
+        <input type="file" id="selfiePhoto" accept="image/*" capture="user" required class="hidden">
+       </label>
+       <p id="selfieName" class="text-[10px] text-gray-500 mt-1">ยังไม่ได้เลือกไฟล์</p>
+       <p class="text-[10px] text-gray-500 mt-1">ถ่ายหน้าตรง ไม่สวมหมวกหรือแว่นกันแดด เห็นใบหน้าชัดเจน</p>
+        </div>
+
+        <p id="formMessage" class="text-xs text-center hidden"></p>
+
+        <button type="submit" id="submitBtn"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow-md transition text-sm disabled:opacity-60">
+          ส่งใบสมัครคนขับ
+        </button>
+      </form>
+    </div>
+
+    <div class="text-center mt-4">
+      <a href="customer_orders.html" class="inline-block text-xs font-bold text-green-700 hover:underline">
+        ← กลับไปหน้าเรียกรถ
+      </a>
+    </div>
+  </main>
+
+  <script>
+    const MAX_FILE_MB = 5;
+
+    function showMessage(text, isError = false) {
+      const el = document.getElementById('formMessage');
+      el.textContent = text;
+      el.classList.remove('hidden', 'text-red-600', 'text-green-700');
+      el.classList.add(isError ? 'text-red-600' : 'text-green-700');
+    }
+
+    function validateFile(input, label) {
+      const file = input.files[0];
+      if (!file) return `กรุณาเลือกไฟล์: ${label}`;
+      if (!file.type.startsWith('image/')) return `${label} ต้องเป็นไฟล์รูปภาพ`;
+      if (file.size > MAX_FILE_MB * 1024 * 1024) return `${label} ต้องมีขนาดไม่เกิน ${MAX_FILE_MB} MB`;
+      return null;
+    }
+
+    // อัปโหลดไปยัง API route บน Vercel (ไม่ใช้ anon key เขียน Storage โดยตรง)
+    async function uploadToApi(file, docType, phone) {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('docType', docType);
+      form.append('phone', phone);
+      const res = await fetch('/api/driver-upload', { method: 'POST', body: form });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'อัปโหลดไม่สำเร็จ');
+      }
+      return res.json();
+    }
+
+    document.getElementById('driverForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const files = [
+        { id: 'idCardPhoto', type: 'id_card', label: 'รูปถ่ายบัตรประชาชน' },
+        { id: 'licensePhoto', type: 'driver_license', label: 'รูปถ่ายใบขับขี่' },
+        { id: 'criminalRecordPhoto', type: 'criminal_record', label: 'ใบตรวจประวัติอาชญากรรม' },
+        { id: 'selfiePhoto', type: 'selfie', label: 'รูปถ่ายหน้าคนขับ' }
+      ];
+
+      for (const f of files) {
+        const err = validateFile(document.getElementById(f.id), f.label);
+        if (err) { showMessage(err, true); return; }
+      }
+
+      const phone = document.getElementById('phone').value.trim();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่งใบสมัคร...';
+
+      try {
+        const { error } = await _supabase.from('drivers').insert([{
+          name: document.getElementById('fullName').value.trim(),
+          phone: phone,
+          vehicle_type: document.getElementById('vehicleType').value,
+          plate_number: document.getElementById('plateNumber').value.trim(),
+          status: 'PENDING'
+        }]);
+        if (error) throw error;
+
+        for (const f of files) {
+          await uploadToApi(document.getElementById(f.id).files[0], f.type, phone);
+        }
+
+        showMessage('ส่งใบสมัครเรียบร้อย ทีมงานจะตรวจสอบและติดต่อกลับ');
+        e.target.reset();
+      } catch (err) {
+        console.error('driver register error:', err.message, err.code || '');
+        showMessage('ไม่สามารถส่งใบสมัครได้ กรุณาลองใหม่อีกครั้ง', true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'ส่งใบสมัครคนขับ';
+      }
+    });
+  </script>
+</body>
+</html>
