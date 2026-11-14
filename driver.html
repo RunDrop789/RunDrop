@@ -37,8 +37,16 @@
     let pollTimer = null;
 
     function setMsg(text) {
-      document.getElementById('statusMsg').textContent = text;
-    }
+  document.getElementById('statusMsg').textContent = text;
+  document.getElementById('debugBox')?.remove();
+  if (text) {
+    const d = document.createElement('pre');
+    d.id = 'debugBox';
+    d.className = 'text-[10px] text-red-600 whitespace-pre-wrap break-all';
+    d.textContent = 'DEBUG: ' + text;
+    document.body.appendChild(d);
+  }
+}
 
     async function api(path, options = {}) {
       const res = await fetch(path, {
@@ -118,6 +126,7 @@
 
     async function init() {
       try {
+        window.onerror = (m) => setMsg('JS error: ' + m);
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
 
