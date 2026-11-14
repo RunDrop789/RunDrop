@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RunDrop - หน้าคนขับ</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="config.js"></script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+  <div class="max-w-md mx-auto p-4 space-y-4">
+
+    <div class="bg-white rounded-2xl shadow p-4 flex items-center justify-between">
+      <div>
+        <p class="text-xs text-gray-500">คนขับ</p>
+        <p id="driverName" class="font-bold text-green-900">กำลังโหลด...</p>
+        <p id="driverVehicle" class="text-[11px] text-gray-500"></p>
+      </div>
+      <label class="flex items-center gap-2 text-xs font-bold">
+        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">
+        ออนไลน์
+      </label>
+    </div>
+
+    <p id="statusMsg" class="text-xs text-center text-gray-500 min-h-[1rem]"></p>
+
+    <div>
+      <h2 class="font-bold text-green-900 mb-2">งานที่รับได้</h2>
+      <div id="orderList" class="space-y-3"></div>
+    </div>
+  </div>
+
+  <script>
+    const LIFF_ID = window.LIFF_ID_DRIVER;
+    let idToken = null;
+    let pollTimer = null;
+
+    function setMsg(text) {
+      document.getElementById('statusMsg').textContent = text;
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-id-token': idToken,
+          ...(options.headers || {})
+        }
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'เกิดข้อผิดพลาด');
+      return body;
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function renderOrders(orders) {
+      const box = document.getElementById('orderList');
+      box.innerHTML = '';
+      if (!orders.length) {
+        box.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">ยังไม่มีงานใหม่</p>';
+        return;
+      }
+      orders.forEach(o => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl shadow p-3 space-y-1';
+        card.innerHTML = `
+          <div class="flex justify-between text-xs">
+            <span class="font-bold">${escapeHtml(o.tracking_code)}</span>
+            <span class="font-bold text-green-700">${escapeHtml(o.price)} ฿</span>
+          </div>
+          <p class="text-xs">รับ: ${escapeHtml(o.pickup_place)}</p>
+          <p class="text-xs">ส่ง: ${escapeHtml(o.destination)}</p>
+          <p class="text-[11px] text-gray-500">ระยะ ${escapeHtml(o.distance_km)} กม.${o.customer_note ? ' · ' + escapeHtml(o.customer_note) : ''}</p>
+        `;
+        const btn = document.createElement('button');
+        btn.className = 'w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg';
+        btn.textContent = 'รับงานนี้';
+        btn.addEventListener('click', () => acceptOrder(o.id));
+        card.appendChild(btn);
+        box.appendChild(card);
+      });
+    }
+
+    async function loadOrders() {
+      try {
+        const { orders } = await api('/api/driver/available');
+        renderOrders(orders);
+      } catch (err) {
+        setMsg(err.message);
+      }
+    }
+
+    async function acceptOrder(orderId) {
+      try {
+        const { order } = await api('/api/driver/accept', {
+          method: 'POST',
+          body: JSON.stringify({ orderId })
+        });
+        setMsg(`รับงาน ${order.tracking_code} แล้ว`);
+      } catch (err) {
+        setMsg(err.message);
+      }
+      loadOrders();
+    }
+
+    document.getElementById('onlineToggle').addEventListener('change', (e) => {
+      // ยังไม่มี API /api/driver/online ในขั้นนี้ จึงย้อนค่ากลับ
+      e.target.checked = !e.target.checked;
+      setMsg('การเปิดออนไลน์ยังไม่เชื่อมกับเซิร์ฟเวอร์ (ต้องทำ api/driver/online.js ก่อน)');
+    });
+
+    async function init() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+        if (!liff.isLoggedIn()) { liff.login(); return; }
+
+        idToken = liff.getIDToken();
+        const profile = await liff.getProfile();
+        console.log('LINE userId:', profile.userId);
+
+        const me = await api('/api/driver/me');
+        document.getElementById('driverName').textContent = me.name;
+        document.getElementById('driverVehicle').textContent = `${me.vehicleType} · ${me.plateNumber}`;
+        document.getElementById('onlineToggle').checked = me.isOnline;
+
+        loadOrders();
+        pollTimer = setInterval(loadOrders, 10000);
+      } catch (err) {
+        setMsg(err.message);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
