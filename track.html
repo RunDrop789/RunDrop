@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RunDrop - ติดตามงาน</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+  <div class="max-w-md mx-auto p-4 space-y-4 pb-10">
+
+    <!-- โหมดรอคนขับ -->
+    <div id="waiting" class="hidden bg-white rounded-2xl shadow p-4 space-y-2 text-center">
+      <p class="text-sm font-bold text-green-900">กำลังค้นหาคนขับ</p>
+      <p class="text-xs text-gray-500">เหลือเวลา <span id="countdown" class="font-bold">05:00</span></p>
+      <div id="noDriver" class="hidden space-y-2">
+        <p class="text-xs text-red-600">ขออภัย ยังไม่มีคนขับว่างในขณะนี้</p>
+        <button id="retryBtn" class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg">ลองเรียกรถใหม่</button>
+      </div>
+    </div>
+
+    <!-- ข้อมูลงาน -->
+    <div class="bg-white rounded-2xl shadow p-4 space-y-2">
+      <p class="text-xs text-gray-500">รหัสติดตาม</p>
+      <p id="code" class="font-bold text-green-900"></p>
+      <p id="status" class="text-sm font-bold text-green-800"></p>
+      <p id="driver" class="text-xs text-gray-600"></p>
+      <p id="gpsTime" class="text-[11px] text-gray-400"></p>
+    </div>
+
+    <!-- กรอกเบอร์ยืนยัน -->
+    <div id="verify" class="bg-white rounded-2xl shadow p-4 space-y-2">
+      <p class="text-xs">กรอกเบอร์โทรที่ใช้เรียกรถเพื่อดูสถานะ</p>
+      <input id="phoneIn" inputmode="tel" class="w-full border rounded-lg p-2 text-xs" placeholder="0812345678">
+      <button id="verifyBtn" class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg">ดูสถานะ</button>
+      <p id="msg" class="text-xs text-red-600"></p>
+    </div>
+
+    <!-- แผนที่และแชท -->
+    <div id="panel" class="hidden space-y-4">
+      <div id="map" class="h-64 rounded-2xl border"></div>
+      <div class="bg-white rounded-2xl shadow p-4 space-y-2">
+        <h3 class="text-xs font-bold">แชทกับคนขับ</h3>
+        <div id="chatBox" class="h-40 overflow-y-auto border rounded-lg p-2 space-y-1 bg-gray-50"></div>
+        <form id="chatForm" class="flex gap-2">
+          <input id="chatInput" maxlength="300" class="flex-1 border rounded-lg p-2 text-xs" placeholder="พิมพ์ข้อความ">
+          <button class="bg-green-600 text-white text-xs font-bold px-3 rounded-lg">ส่ง</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const code = params.get('code') || '';
+    const WAIT_MS = 5 * 60 * 1000;
+    const STATUS_TH = {
+      NEW: 'กำลังค้นหาคนขับ',
+      ACCEPTED: 'คนขับรับงานแล้ว กำลังไปรับสินค้า',
+      PICKED_UP: 'รับสินค้าแล้ว กำลังไปส่ง',
+      DELIVERED: 'ส่งสินค้าเรียบร้อย',
+      CANCELLED: 'ยกเลิก'
+    };
+    let phone = params.get('phone') || '';
+    let map = null, driverMarker = null, pollTimer = null, waitTimer = null;
+
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    $('code').textContent = code;
+
+    // ---------- โหลดข้อมูลงาน ----------
+    async function load() {
+      const res = await fetch(`/api/track?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'โหลดไม่สำเร็จ');
+
+      $('verify').classList.add('hidden');
+      $('panel').classList.remove('hidden');
+      $('status').textContent = STATUS_TH[d.order.status] || d.order.status;
+      $('driver').textContent = d.driver
+        ? `คนขับ: ${d.driver.name} · ${d.driver.vehicle} · ${d.driver.plate}`
+        : 'ยังไม่มีคนขับรับงาน';
+      $('gpsTime').textContent = d.driver?.updatedAt
+        ? 'ตำแหน่งล่าสุด: ' + new Date(d.driver.updatedAt).toLocaleTimeString('th-TH') : '';
+      drawMap(d);
+      return d;
+    }
+
+    function drawMap(d) {
+      if (!map) {
+        map = L.map('map');
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+      }
+      const pts = [];
+      const o = d.order;
+      if (o.pickup.lat != null) {
+        L.circleMarker([o.pickup.lat, o.pickup.lng], { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(map);
+        pts.push([o.pickup.lat, o.pickup.lng]);
+      }
+      if (o.dropoff.lat != null) {
+        L.circleMarker([o.dropoff.lat, o.dropoff.lng], { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(map);
+        pts.push([o.dropoff.lat, o.dropoff.lng]);
+      }
+      if (d.driver?.lat != null) {
+        if (driverMarker) driverMarker.remove();
+        driverMarker = L.marker([d.driver.lat, d.driver.lng]).bindTooltip('คนขับ').addTo(map);
+        pts.push([d.driver.lat, d.driver.lng]);
+      }
+      if (pts.length) map.fitBounds(pts, { padding: [30, 30] });
+    }
+
+    // ---------- แชท ----------
+    async function loadChat() {
+      const res = await fetch(`/api/track/messages?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
+      const { messages = [] } = await res.json();
+      $('chatBox').innerHTML = messages.map(m => `
+        <div class="flex ${m.sender === 'customer' ? 'justify-end' : 'justify-start'}">
+          <span class="max-w-[75%] px-2 py-1 rounded-lg text-xs ${m.sender === 'customer' ? 'bg-green-600 text-white' : 'bg-white border'}">${esc(m.body)}</span>
+        </div>`).join('');
+      $('chatBox').scrollTop = $('chatBox').scrollHeight;
+    }
+
+    $('chatForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = $('chatInput').value.trim();
+      if (!body) return;
+      await fetch('/api/track/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, phone, body })
+      });
+      $('chatInput').value = '';
+      loadChat();
+    });
+
+    // ---------- เริ่มดูสถานะ (หลังยืนยันเบอร์) ----------
+    function startTracking() {
+      clearInterval(pollTimer);
+      pollTimer = setInterval(() => { load().catch(() => {}); loadChat().catch(() => {}); }, 10000);
+      loadChat();
+    }
+
+    $('verifyBtn').addEventListener('click', async () => {
+      phone = $('phoneIn').value.replace(/\s/g, '');
+      try {
+        await load();
+        startTracking();
+      } catch (e) { $('msg').textContent = e.message; }
+    });
+
+    // ---------- โหมดรอคนขับ ----------
+    const startedAt = Date.now();
+    if (params.get('wait') === '1' && phone) {
+      $('waiting').classList.remove('hidden');
+      $('verify').classList.add('hidden');
+
+      waitTimer = setInterval(async () => {
+        const left = WAIT_MS - (Date.now() - startedAt);
+        const s = Math.max(0, Math.ceil(left / 1000));
+        $('countdown').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
+        try {
+          const res = await fetch(`/api/track?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
+          const d = await res.json();
+          if (res.ok && d.order.status !== 'NEW') {
+            clearInterval(waitTimer);
+            $('waiting').classList.add('hidden');
+            await load();
+            startTracking();
+            return;
+          }
+        } catch (e) {}
+
+        if (left <= 0) {
+          clearInterval(waitTimer);
+          await fetch('/api/order-cancel', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, phone })
+          }).catch(() => {});
+          $('countdown').textContent = '00:00';
+          $('noDriver').classList.remove('hidden');
+        }
+      }, 3000);
+    } else if (phone) {
+      // เปิดลิงก์ที่มีเบอร์อยู่แล้ว โหลดทันที
+      load().then(startTracking).catch(() => {});
+    }
+
+    $('retryBtn').addEventListener('click', () => { location.href = 'customer_orders.html'; });
+  </script>
+</body>
+</html>
