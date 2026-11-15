@@ -76,9 +76,9 @@ export default async function handler(req, res) {
     .from('driver-docs')
     .upload(path, buffer, { contentType: mimeType, upsert: false });
   if (upErr) {
-    console.error('storage upload error:', upErr.message);
-    return res.status(500).json({ error: 'อัปโหลดไฟล์ไม่สำเร็จ' });
-  }
+  console.error('storage upload error:', upErr.message);
+  return res.status(500).json({ error: 'อัปโหลดไฟล์ไม่สำเร็จ: ' + upErr.message });
+}
 
   const { error: insErr } = await supabase.from('driver_documents').insert([{
     driver_id: driver.id,
