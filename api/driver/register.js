@@ -42,7 +42,6 @@ export default async function handler(req, res) {
   if (!VEHICLE_TYPES.includes(vehicleType)) return res.status(400).json({ error: 'ประเภทรถไม่ถูกต้อง' });
   if (!plateNumber) return res.status(400).json({ error: 'กรุณากรอกทะเบียนรถ' });
 
-  // ป้องกันสมัครซ้ำด้วย line_user_id
   const { data: existing, error: findErr } = await supabase
     .from('drivers')
     .select('id, status')
@@ -52,14 +51,41 @@ export default async function handler(req, res) {
     console.error('register find error:', findErr.code);
     return res.status(500).json({ error: 'db error' });
   }
-  if (existing) return res.status(409).json({ error: 'บัญชีนี้สมัครไว้แล้ว', status: existing.status });
 
-  const { error } = await supabase.from('drivers').insert([{
+  const fields = {
     name,
     phone,
     id_card: idCard,
     vehicle_type: vehicleType,
-    plate_number: plateNumber,
+    plate_number: plateNumber
+  };
+
+  if (existing) {
+    if (existing.status === 'PENDING') {
+      return res.status(409).json({
+        error: 'ใบสมัครของคุณอยู่ระหว่างรอตรวจสอบ ไม่สามารถส่งซ้ำได้',
+        code: 'PENDING'
+      });
+    }
+    if (existing.status === 'APPROVED') {
+      return res.status(409).json({ error: 'บัญชีนี้ได้รับการอนุมัติแล้ว', code: 'APPROVED' });
+    }
+    if (existing.status === 'REJECTED') {
+      const { error: updErr } = await supabase
+        .from('drivers')
+        .update({ ...fields, status: 'PENDING', reject_reason: null, reviewed_at: null })
+        .eq('id', existing.id);
+      if (updErr) {
+        console.error('register update error:', updErr.code);
+        return res.status(500).json({ error: 'บันทึกไม่สำเร็จ' });
+      }
+      return res.status(200).json({ ok: true, status: 'PENDING', resubmitted: true });
+    }
+    return res.status(409).json({ error: 'สถานะบัญชีไม่อนุญาตให้สมัครซ้ำ', code: existing.status });
+  }
+
+  const { error } = await supabase.from('drivers').insert([{
+    ...fields,
     line_user_id: lineUserId,
     status: 'PENDING'
   }]);
