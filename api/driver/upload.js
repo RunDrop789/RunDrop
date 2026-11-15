@@ -59,9 +59,9 @@ export default async function handler(req, res) {
       .select('id', { count: 'exact', head: true })
       .eq('driver_id', driver.id);
     if (countErr) {
-      console.error('upload count error:', countErr.code);
-      return res.status(500).json({ error: 'db error' });
-    }
+  console.error('upload count error:', countErr.message, countErr.code, countErr.details);
+  return res.status(500).json({ error: 'db error: ' + countErr.message });
+}
     if (count >= DOC_TYPES.length) {
       return res.status(409).json({ error: 'อยู่ระหว่างรอตรวจสอบ ไม่สามารถส่งเอกสารซ้ำได้', code: 'PENDING' });
     }
