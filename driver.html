@@ -3,145 +3,382 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RunDrop - สมัครเป็นพาร์ทเนอร์คนขับ</title>
+  <title>RunDrop - หน้าคนขับ</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800">
+  <div class="max-w-md mx-auto p-4 space-y-4 pb-10">
 
-  <div class="w-full bg-white border-b border-gray-200">
-    <div class="max-w-2xl mx-auto px-4 pt-4 pb-3 text-center">
-      <img src="banner.jpg" alt="RunDrop Banner"
-        class="block mx-auto w-full max-w-sm md:max-w-md h-auto rounded-2xl shadow-md">
-      <h1 class="text-xl md:text-2xl font-black text-green-900 mt-3 leading-tight">สมัครเป็นพาร์ทเนอร์คนขับ RunDrop</h1>
-      <p class="text-[11px] md:text-xs font-bold text-green-800 leading-tight">กรอกข้อมูลและแนบเอกสารให้ครบ ทีมงานจะตรวจสอบและติดต่อกลับ</p>
+    <!-- โปรไฟล์ -->
+    <div class="bg-white rounded-2xl shadow p-4 flex items-center gap-3">
+      <img id="selfie" class="w-16 h-16 rounded-full object-cover bg-gray-200" alt="">
+      <div class="flex-1 min-w-0">
+        <p id="name" class="font-bold text-green-900 truncate">กำลังโหลด...</p>
+        <p id="vehicle" class="text-[11px] text-gray-500"></p>
+      </div>
+      <label id="onlineWrap" class="hidden flex items-center gap-2 text-xs font-bold">
+        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">ออนไลน์
+      </label>
+    </div>
+
+    <p id="msg" class="text-xs text-center text-red-600 min-h-[1rem]"></p>
+
+    <!-- สถานะใบสมัคร (ยังไม่อนุมัติ) -->
+    <div id="regCard" class="hidden bg-white rounded-2xl shadow p-4 space-y-2">
+      <h2 class="font-bold text-green-900">สถานะใบสมัคร</h2>
+      <p id="regStatus" class="text-sm font-bold"></p>
+      <p id="regReason" class="text-xs text-red-600"></p>
+      <ul id="docList" class="text-xs space-y-1"></ul>
+    </div>
+
+    <!-- ส่วนหลักเมื่อได้รับอนุมัติ -->
+    <div id="dashboard" class="hidden space-y-4">
+
+      <!-- งานที่กำลังทำ -->
+      <div id="activeCard" class="hidden bg-white rounded-2xl shadow p-4 space-y-3">
+        <div class="flex justify-between text-xs">
+          <span id="aTrack" class="font-bold"></span>
+          <span id="aPrice" class="font-bold text-green-700"></span>
+        </div>
+        <p id="aStatus" class="text-xs font-bold text-green-800"></p>
+        <p class="text-xs">รับ: <span id="aPick"></span></p>
+        <p class="text-xs">ส่ง: <span id="aDrop"></span></p>
+        <p class="text-xs">ลูกค้า: <span id="aCust"></span> · <a id="aTel" class="text-green-700 font-bold">โทรหาลูกค้า</a></p>
+        <div id="jobMap" class="h-48 rounded-xl border"></div>
+        <button id="advanceBtn" class="hidden w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg"></button>
+
+        <div>
+          <h3 class="text-xs font-bold mb-1">แชทกับลูกค้า</h3>
+          <div id="chatBox" class="h-40 overflow-y-auto border rounded-lg p-2 space-y-1 bg-gray-50"></div>
+          <form id="chatForm" class="flex gap-2 mt-2">
+            <input id="chatInput" maxlength="300" placeholder="พิมพ์ข้อความ"
+              class="flex-1 border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+            <button class="bg-green-600 text-white text-xs font-bold px-3 rounded-lg">ส่ง</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- สถิติ -->
+      <div class="bg-white rounded-2xl shadow p-4 space-y-3">
+        <div class="flex gap-2 text-xs font-bold">
+          <button data-g="day" class="gbtn flex-1 py-1 rounded-lg">รายวัน</button>
+          <button data-g="week" class="gbtn flex-1 py-1 rounded-lg">รายสัปดาห์</button>
+          <button data-g="month" class="gbtn flex-1 py-1 rounded-lg">รายเดือน</button>
+        </div>
+        <div id="bars" class="flex items-end gap-[2px] h-28"></div>
+        <div id="barLabels" class="flex text-[9px] text-gray-400"></div>
+        <p id="barDetail" class="text-xs text-center font-bold"></p>
+        <p id="totals" class="text-[11px] text-gray-500 text-center"></p>
+        <p class="text-[10px] text-gray-400 text-center">ย้อนหลัง 3 เดือน · ยอดเป็นค่าบริการของงาน ยังไม่หักค่าแพลตฟอร์ม</p>
+      </div>
+
+      <!-- งานที่รับได้ -->
+      <div>
+        <h2 class="font-bold text-green-900 mb-2">งานที่รับได้</h2>
+        <div id="orderList" class="space-y-3"></div>
+      </div>
     </div>
   </div>
 
-  <main class="max-w-md mx-auto p-4 pb-12">
-    <div class="bg-white rounded-2xl shadow-md p-4 space-y-4">
-      <form id="driverForm" class="space-y-4">
-
-        <h2 class="text-base font-bold text-green-900 border-b pb-2">ข้อมูลส่วนตัว</h2>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">ชื่อ-นามสกุล *</label>
-          <input type="text" id="fullName" required placeholder="ชื่อ-นามสกุลตามบัตรประชาชน"
-            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">เบอร์โทรศัพท์ *</label>
-          <input type="tel" id="phone" required placeholder="0812345678"
-            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">เลขบัตรประชาชน 13 หลัก *</label>
-          <input type="text" id="idCard" required inputmode="numeric" maxlength="13" placeholder="1234567890123"
-            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">ประเภทรถที่ขับ *</label>
-          <select id="vehicleType" required
-            class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-white focus:outline-none focus:border-green-600">
-            <option value="">-- เลือกประเภทรถ --</option>
-            <option value="Motorcycle">มอเตอร์ไซค์ (Motorcycle)</option>
-            <option value="Sedan">รถเก๋ง (Sedan)</option>
-            <option value="Hatchback">รถแฮทช์แบ็ก (Hatchback)</option>
-            <option value="SUV">รถ SUV (SUV)</option>
-            <option value="Pickup">รถกระบะทั่วไป (Pickup)</option>
-            <option value="Box Pickup">กระบะตู้ทึบ (Box Pickup)</option>
-            <option value="Fence Pickup">รถกระบะคอก (Fence Pickup)</option>
-            <option value="Box Truck">รถบรรทุกตู้ทึบ (Box Truck)</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">ทะเบียนรถ *</label>
-          <input type="text" id="plateNumber" required placeholder="เช่น กข 1234 กทม"
-            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
-        </div>
-
-        <h2 class="text-base font-bold text-green-900 border-b pb-2 pt-2">เอกสารยืนยันตัวตน</h2>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">1. รูปถ่ายบัตรประชาชน *</label>
-          <input type="file" id="fileIdCard" accept="image/*" required
-            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">2. รูปถ่ายใบขับขี่ *</label>
-          <input type="file" id="fileLicense" accept="image/*" required
-            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">3. ใบตรวจประวัติอาชญากรรม *</label>
-          <input type="file" id="fileCriminal" accept="image/*" required
-            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold mb-1">4. รูปถ่ายหน้าคนขับ *</label>
-          <input type="file" id="fileSelfie" accept="image/*" required
-            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
-          <p class="text-[10px] text-gray-500 mt-1">ถ่ายหน้าตรง ไม่สวมหมวกหรือแว่นกันแดด เห็นใบหน้าชัดเจน</p>
-        </div>
-
-        <label class="flex items-start gap-2 text-[11px] text-gray-700">
-          <input type="checkbox" id="consent" required class="mt-0.5 w-4 h-4 accent-green-600">
-          <span>ข้าพเจ้ายินยอมให้ RunDrop เก็บและใช้เอกสารและรูปถ่ายข้างต้นเพื่อยืนยันตัวตนและตรวจสอบคุณสมบัติคนขับเท่านั้น โดยเก็บไว้ไม่เกินระยะเวลาที่จำเป็น</span>
-        </label>
-
-        <p class="text-[10px] text-gray-500">ข้อมูลส่วนบุคคลจะใช้เพื่อยืนยันตัวตนคนขับเท่านั้น</p>
-
-        <p id="formMessage" class="text-xs text-center min-h-[1rem]"></p>
-
-        <button type="submit" id="submitBtn"
-          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow-md transition text-sm disabled:opacity-60">
-          ส่งใบสมัครคนขับ
-        </button>
-      </form>
+  <!-- Modal ยืนยันการทำงาน -->
+  <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl max-w-xs w-full p-5 text-center space-y-3">
+      <p id="confirmText" class="text-sm font-bold"></p>
+      <div class="flex gap-2">
+        <button id="confirmNo" class="w-1/2 bg-gray-200 py-2 rounded-lg text-xs font-bold">ยกเลิก</button>
+        <button id="confirmYes" class="w-1/2 bg-green-600 text-white py-2 rounded-lg text-xs font-bold">ยืนยัน</button>
+      </div>
     </div>
-  </main>
+  </div>
 
   <script>
-    const LIFF_ID = '2012603605-2lSXUvu0';
-    const MAX_MB = 3;
-    const DOCS = [
-      { inputId: 'fileIdCard',   docType: 'id_card',         label: 'รูปถ่ายบัตรประชาชน' },
-      { inputId: 'fileLicense',  docType: 'driver_license',  label: 'รูปถ่ายใบขับขี่' },
-      { inputId: 'fileCriminal', docType: 'criminal_record', label: 'ใบตรวจประวัติอาชญากรรม' },
-      { inputId: 'fileSelfie',   docType: 'selfie',          label: 'รูปถ่ายหน้าคนขับ' }
-    ];
-    let idToken = null;
+    const LIFF_ID = '2012603605-C9Lh060m';
+    const TZ = 'Asia/Bangkok';
+    const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
+    const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
+    const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
 
-    function showMessage(text, isError = false) {
-      const el = document.getElementById('formMessage');
-      el.textContent = text;
-      el.className = 'text-xs text-center min-h-[1rem] ' + (isError ? 'text-red-600' : 'text-green-700');
+    let idToken = null, activeOrder = null, history = [], gran = 'day', selectedKey = null;
+    let map = null, mapLayer = null, mapOrderId = null;
+    let chatOrderId = null, chatTimer = null, pollTimer = null;
+    let pendingAction = null;
+
+    const $ = id => document.getElementById(id);
+    const say = t => { $('msg').textContent = t || ''; };
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     }
 
-    function readAsBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(',')[1]);
-        reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
-        reader.readAsDataURL(file);
+    async function api(path, opt = {}) {
+      const res = await fetch(path, {
+        ...opt,
+        headers: { 'Content-Type': 'application/json', 'x-line-id-token': idToken, ...(opt.headers || {}) }
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'เกิดข้อผิดพลาด');
+      return body;
+    }
+
+    // ---------- สถานะใบสมัคร / โปรไฟล์ ----------
+    async function loadStatus() {
+      const st = await api('/api/driver/status');
+      if (!st.registered) {
+        $('regCard').classList.remove('hidden');
+        $('regStatus').textContent = 'ยังไม่ได้สมัครคนขับ';
+        $('regReason').textContent = 'กรุณาสมัครผ่านลิงก์สมัครคนขับ RunDrop';
+        return false;
+      }
+      $('name').textContent = st.name;
+      $('vehicle').textContent = `${st.vehicleType} · ${st.plateNumber}`;
+      if (st.selfieUrl) $('selfie').src = st.selfieUrl;
+
+      if (st.status !== 'APPROVED') {
+        const label = { PENDING: 'รอตรวจสอบ', REJECTED: 'ไม่ผ่าน' }[st.status] || st.status;
+        $('regCard').classList.remove('hidden');
+        $('regStatus').textContent = 'สถานะ: ' + label;
+        $('regReason').textContent = st.status === 'REJECTED'
+          ? 'เหตุผล: ' + (st.rejectReason || '-') + ' (กรุณาส่งเอกสารใหม่ผ่านลิงก์สมัครคนขับ)' : '';
+        $('docList').innerHTML = st.docs.map(d => `<li>${d.uploaded ? '✅' : '❌'} ${DOC_TH[d.type]}</li>`).join('');
+        return false;
+      }
+
+      $('onlineWrap').classList.remove('hidden');
+      $('onlineToggle').checked = st.isOnline;
+      return true;
+    }
+
+    // ---------- งานปัจจุบัน ----------
+    async function loadJobs() {
+      const d = await api('/api/driver/jobs');
+      history = d.history;
+      activeOrder = d.active;
+      renderActive();
+      renderStats();
+    }
+
+    function renderActive() {
+      const card = $('activeCard');
+      if (!activeOrder) {
+        card.classList.add('hidden');
+        stopChat();
+        mapOrderId = null;
+        return;
+      }
+      const o = activeOrder;
+      card.classList.remove('hidden');
+      $('aTrack').textContent = o.tracking_code;
+      $('aPrice').textContent = o.price + ' ฿';
+      $('aStatus').textContent = STATUS_TH[o.status] || o.status;
+      $('aPick').textContent = o.pickup_place;
+      $('aDrop').textContent = o.destination;
+      $('aCust').textContent = o.customer_name;
+      $('aTel').href = 'tel:' + o.phone;
+
+      const n = NEXT[o.status];
+      const btn = $('advanceBtn');
+      btn.classList.toggle('hidden', !n);
+      if (n) btn.textContent = n.label;
+
+      if (mapOrderId !== o.id) { drawMap(o); mapOrderId = o.id; }
+      startChat(o.id);
+    }
+
+    function drawMap(o) {
+      if (!map) {
+        map = L.map('jobMap');
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        mapLayer = L.layerGroup().addTo(map);
+      }
+      mapLayer.clearLayers();
+      if (o.pickup_lat == null || o.dropoff_lat == null) return;
+      const p = [Number(o.pickup_lat), Number(o.pickup_lng)];
+      const d = [Number(o.dropoff_lat), Number(o.dropoff_lng)];
+      L.circleMarker(p, { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(mapLayer);
+      L.circleMarker(d, { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(mapLayer);
+      L.polyline([p, d], { color: '#16a34a', dashArray: '6 6' }).addTo(mapLayer);
+      setTimeout(() => { map.invalidateSize(); map.fitBounds([p, d], { padding: [30, 30] }); }, 100);
+    }
+
+    // ---------- ยืนยันขั้นตอนงาน ----------
+    $('advanceBtn').addEventListener('click', () => {
+      const n = NEXT[activeOrder?.status];
+      if (!n) return;
+      pendingAction = { orderId: activeOrder.id, next: n.to };
+      $('confirmText').textContent = `ยืนยัน: ${n.label}?`;
+      $('confirmModal').classList.remove('hidden');
+      $('confirmModal').classList.add('flex');
+    });
+    $('confirmNo').addEventListener('click', () => {
+      $('confirmModal').classList.add('hidden');
+      $('confirmModal').classList.remove('flex');
+    });
+    $('confirmYes').addEventListener('click', async () => {
+      $('confirmNo').click();
+      try {
+        await api('/api/driver/status-update', { method: 'POST', body: JSON.stringify(pendingAction) });
+        say('อัปเดตสถานะแล้ว');
+        await refresh();
+      } catch (e) { say(e.message); }
+    });
+
+    // ---------- แชท ----------
+    function startChat(orderId) {
+      if (chatOrderId === orderId) return;
+      stopChat();
+      chatOrderId = orderId;
+      loadChat();
+      chatTimer = setInterval(loadChat, 5000);
+    }
+    function stopChat() {
+      clearInterval(chatTimer);
+      chatTimer = null;
+      chatOrderId = null;
+    }
+    async function loadChat() {
+      if (!chatOrderId) return;
+      const { messages } = await api('/api/driver/messages?orderId=' + chatOrderId);
+      $('chatBox').innerHTML = messages.length
+        ? messages.map(m => `<div class="flex ${m.sender === 'driver' ? 'justify-end' : 'justify-start'}">
+            <span class="max-w-[75%] px-2 py-1 rounded-lg text-xs ${m.sender === 'driver' ? 'bg-green-600 text-white' : 'bg-white border'}">${esc(m.body)}</span>
+          </div>`).join('')
+        : '<p class="text-[11px] text-gray-400 text-center">ยังไม่มีข้อความ</p>';
+      $('chatBox').scrollTop = $('chatBox').scrollHeight;
+    }
+    $('chatForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = $('chatInput').value.trim();
+      if (!body || !chatOrderId) return;
+      try {
+        await api('/api/driver/messages', { method: 'POST', body: JSON.stringify({ orderId: chatOrderId, body }) });
+        $('chatInput').value = '';
+        loadChat();
+      } catch (err) { say(err.message); }
+    });
+
+    // ---------- สถิติ ----------
+    function dayKey(ms) { return new Date(ms).toLocaleDateString('sv-SE', { timeZone: TZ }); }
+    function shiftDay(k, n) {
+      const d = new Date(k + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() + n);
+      return d.toISOString().slice(0, 10);
+    }
+    function weekStart(k) {
+      const wd = (new Date(k + 'T00:00:00Z').getUTCDay() + 6) % 7; // จันทร์ = 0
+      return shiftDay(k, -wd);
+    }
+    function keyOf(ms) {
+      const k = dayKey(ms);
+      if (gran === 'day') return k;
+      if (gran === 'week') return weekStart(k);
+      return k.slice(0, 7);
+    }
+    function bucketKeys() {
+      const today = dayKey(Date.now());
+      if (gran === 'day') return Array.from({ length: 30 }, (_, i) => shiftDay(today, i - 29));
+      if (gran === 'week') return Array.from({ length: 13 }, (_, i) => weekStart(shiftDay(today, (i - 12) * 7)));
+      const [y, m] = today.split('-').map(Number);
+      return Array.from({ length: 3 }, (_, i) => new Date(Date.UTC(y, m - 1 - (2 - i), 1)).toISOString().slice(0, 7));
+    }
+
+    function renderStats() {
+      const keys = bucketKeys();
+      const agg = {};
+      for (const o of history) {
+        const k = keyOf(new Date(o.accepted_at).getTime());
+        agg[k] ??= { count: 0, sum: 0 };
+        agg[k].count++;
+        agg[k].sum += Number(o.price) || 0;
+      }
+      const max = Math.max(1, ...keys.map(k => agg[k]?.count || 0));
+      $('bars').innerHTML = keys.map(k => {
+        const c = agg[k]?.count || 0;
+        const h = c ? Math.max(4, Math.round(c / max * 112)) : 2;
+        return `<button data-k="${k}" class="flex-1 rounded-t ${k === selectedKey ? 'bg-green-700' : 'bg-green-400'}" style="height:${h}px"></button>`;
+      }).join('');
+      $('barLabels').innerHTML = `<span>${keys[0]}</span><span class="ml-auto">${keys[keys.length - 1]}</span>`;
+
+      const sel = selectedKey && keys.includes(selectedKey) ? selectedKey : keys[keys.length - 1];
+      selectedKey = sel;
+      const a = agg[sel] || { count: 0, sum: 0 };
+      $('barDetail').textContent = `${sel}: ${a.count} งาน · ${a.sum.toLocaleString()} ฿`;
+
+      const total = keys.reduce((s, k) => s + (agg[k]?.count || 0), 0);
+      const totalSum = keys.reduce((s, k) => s + (agg[k]?.sum || 0), 0);
+      $('totals').textContent = `ช่วงที่แสดง รวม ${total} งาน · ${totalSum.toLocaleString()} ฿`;
+      document.querySelectorAll('.gbtn').forEach(b => {
+        b.classList.toggle('bg-green-600', b.dataset.g === gran);
+        b.classList.toggle('text-white', b.dataset.g === gran);
+        b.classList.toggle('bg-gray-200', b.dataset.g !== gran);
       });
     }
 
-    function validateFiles() {
-      for (const d of DOCS) {
-        const file = document.getElementById(d.inputId).files[0];
-        if (!file) return `กรุณาเลือก${d.label}`;
-        if (!file.type.startsWith('image/')) return `${d.label} ต้องเป็นไฟล์รูปภาพ`;
-        if (file.size > MAX_MB * 1024 * 1024) return `${d.label} ต้องมีขนาดไม่เกิน ${MAX_MB} MB`;
+    $('bars').addEventListener('click', e => {
+      if (e.target.dataset.k) { selectedKey = e.target.dataset.k; renderStats(); }
+    });
+    document.querySelectorAll('.gbtn').forEach(b => b.addEventListener('click', () => {
+      gran = b.dataset.g;
+      selectedKey = null;
+      renderStats();
+    }));
+
+    // ---------- งานที่รับได้ ----------
+    async function loadAvailable() {
+      if (activeOrder) {
+        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-2">มีงานที่กำลังทำอยู่ ทำให้เสร็จก่อนรับงานใหม่</p>';
+        return;
       }
-      return null;
+      if (!$('onlineToggle').checked) {
+        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เปิดออนไลน์เพื่อรับงาน</p>';
+        return;
+      }
+      const { orders } = await api('/api/driver/available');
+      $('orderList').innerHTML = orders.length
+        ? orders.map(o => `
+          <div class="bg-white rounded-xl shadow p-3 space-y-1">
+            <div class="flex justify-between text-xs">
+              <span class="font-bold">${esc(o.tracking_code)}</span>
+              <span class="font-bold text-green-700">${esc(o.price)} ฿</span>
+            </div>
+            <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
+            <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
+            <p class="text-[11px] text-gray-500">ระยะ ${esc(o.distance_km)} กม.${o.customer_note ? ' · ' + esc(o.customer_note) : ''}</p>
+            <button data-id="${o.id}" class="accept w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg">รับงานนี้</button>
+          </div>`).join('')
+        : '<p class="text-xs text-gray-400 text-center py-4">ยังไม่มีงานใหม่</p>';
+    }
+
+    $('orderList').addEventListener('click', async e => {
+      if (!e.target.classList.contains('accept')) return;
+      try {
+        const { order } = await api('/api/driver/accept', {
+          method: 'POST', body: JSON.stringify({ orderId: Number(e.target.dataset.id) })
+        });
+        say(`รับงาน ${order.tracking_code} แล้ว`);
+      } catch (err) { say(err.message); }
+      await refresh();
+    });
+
+    // ---------- ออนไลน์ ----------
+    $('onlineToggle').addEventListener('change', async e => {
+      const v = e.target.checked;
+      try {
+        await api('/api/driver/online', { method: 'POST', body: JSON.stringify({ isOnline: v }) });
+        say(v ? 'ออนไลน์แล้ว' : 'ออฟไลน์แล้ว');
+        await loadAvailable();
+      } catch (err) {
+        e.target.checked = !v;
+        say(err.message);
+      }
+    });
+
+    // ---------- เริ่มต้น ----------
+    async function refresh() {
+      try { await loadJobs(); await loadAvailable(); } catch (e) { say(e.message); }
     }
 
     async function init() {
@@ -149,65 +386,15 @@
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
         idToken = liff.getIDToken();
+        const approved = await loadStatus();
+        if (!approved) return;
+        $('dashboard').classList.remove('hidden');
+        await refresh();
+        pollTimer = setInterval(refresh, 10000);
       } catch (err) {
-        showMessage('ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดจากลิงก์ LIFF', true);
+        say(err.message || 'ไม่สามารถเชื่อมต่อ LINE ได้');
       }
     }
-
-    document.getElementById('driverForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!idToken) { showMessage('ยังไม่ได้เชื่อมต่อ LINE กรุณาลองใหม่', true); return; }
-
-      const idCard = document.getElementById('idCard').value.trim();
-      if (!/^\d{13}$/.test(idCard)) { showMessage('เลขบัตรประชาชนต้องมี 13 หลัก', true); return; }
-      if (!document.getElementById('consent').checked) { showMessage('กรุณายินยอมก่อนส่งใบสมัคร', true); return; }
-
-      const fileError = validateFiles();
-      if (fileError) { showMessage(fileError, true); return; }
-
-      const btn = document.getElementById('submitBtn');
-      btn.disabled = true;
-      btn.textContent = 'กำลังส่งใบสมัคร...';
-
-      try {
-        // 1) บันทึกข้อมูลส่วนตัว (409 = เคยสมัครแล้ว ให้อัปโหลดเอกสารต่อได้)
-        const regRes = await fetch('/api/driver/register', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-line-id-token': idToken },
-          body: JSON.stringify({
-            name: document.getElementById('fullName').value.trim(),
-            phone: document.getElementById('phone').value.trim(),
-            idCard,
-            vehicleType: document.getElementById('vehicleType').value,
-            plateNumber: document.getElementById('plateNumber').value.trim()
-          })
-        });
-        const regBody = await regRes.json().catch(() => ({}));
-        if (!regRes.ok && regRes.status !== 409) throw new Error(regBody.error || 'ส่งใบสมัครไม่สำเร็จ');
-
-        // 2) อัปโหลดเอกสารทีละไฟล์
-        for (const d of DOCS) {
-          const file = document.getElementById(d.inputId).files[0];
-          btn.textContent = `กำลังอัปโหลด ${d.label}...`;
-          const data = await readAsBase64(file);
-          const res = await fetch('/api/driver/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-line-id-token': idToken },
-            body: JSON.stringify({ docType: d.docType, mimeType: file.type, data })
-          });
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(`${d.label}: ${body.error || 'อัปโหลดไม่สำเร็จ'}`);
-        }
-
-        showMessage('ส่งใบสมัครและเอกสารเรียบร้อย ทีมงานจะตรวจสอบและติดต่อกลับ');
-        e.target.reset();
-      } catch (err) {
-        showMessage(err.message, true);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'ส่งใบสมัครคนขับ';
-      }
-    });
 
     document.addEventListener('DOMContentLoaded', init);
   </script>

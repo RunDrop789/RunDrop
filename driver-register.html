@@ -220,7 +220,6 @@
         headers: { 'x-line-id-token': idToken }
       });
       const st = await res.json().catch(() => ({}));
-      alert('DEBUG ' + res.status + ' ' + JSON.stringify(st));
       if (!res.ok) throw new Error(st.error || 'ตรวจสถานะไม่สำเร็จ');
 
       if (!st.registered) return;
