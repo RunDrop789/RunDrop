@@ -144,8 +144,8 @@
       document.getElementById('resultTitle').textContent = title;
       document.getElementById('resultText').textContent = text;
       const st = document.getElementById('resultStatus');
-      if (ok) {
-        st.textContent = 'สถานะ: ' + (status || 'รอตรวจสอบ');
+      if (status) {
+        st.textContent = 'สถานะ: ' + status;
         st.classList.remove('hidden');
       } else {
         st.classList.add('hidden');
@@ -155,10 +155,14 @@
       modal.classList.add('flex');
     }
 
-    document.getElementById('resultClose').addEventListener('click', () => {
+    function hideResult() {
       const modal = document.getElementById('resultModal');
       modal.classList.add('hidden');
       modal.classList.remove('flex');
+    }
+
+    document.getElementById('resultClose').addEventListener('click', () => {
+      hideResult();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
@@ -210,11 +214,33 @@
       return null;
     }
 
+    // เช็กสถานะตอนเปิดหน้า: แสดงสถานะ/ชื่อ และซ่อนฟอร์มถ้าส่งครบแล้ว
+    async function checkStatus() {
+      const res = await fetch('/api/driver/status', {
+        headers: { 'x-line-id-token': idToken }
+      });
+      const st = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(st.error || 'ตรวจสถานะไม่สำเร็จ');
+
+      if (!st.registered) return;
+
+      if (st.status === 'APPROVED') {
+        showResult({ ok: true, title: `สวัสดีคุณ ${st.name}`, text: 'บัญชีของคุณได้รับการอนุมัติแล้ว', status: 'อนุมัติแล้ว' });
+        document.getElementById('driverForm').classList.add('hidden');
+      } else if (st.status === 'PENDING' && st.docCount >= DOCS.length) {
+        showResult({ ok: true, title: `สวัสดีคุณ ${st.name}`, text: 'ใบสมัครของคุณได้รับแล้ว อยู่ระหว่างการตรวจสอบ ไม่สามารถส่งซ้ำได้', status: 'รอตรวจสอบ' });
+        document.getElementById('driverForm').classList.add('hidden');
+      } else if (st.status === 'REJECTED') {
+        showResult({ ok: false, title: 'ใบสมัครไม่ผ่าน', text: 'เหตุผล: ' + (st.rejectReason || '-') + ' กรุณาแก้ไขแล้วส่งใหม่', status: 'ไม่ผ่าน' });
+      }
+    }
+
     async function init() {
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
         idToken = liff.getIDToken();
+        await checkStatus();
       } catch (err) {
         showMessage('ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดจากลิงก์ LIFF', true);
       }
@@ -250,9 +276,8 @@
           })
         });
         const regBody = await regRes.json().catch(() => ({}));
-        if (!regRes.ok && regRes.status !== 409) throw new Error(regBody.error || 'ส่งใบสมัครไม่สำเร็จ');
-        if (regRes.status === 409 && regBody.code !== undefined && regBody.code !== 'REJECTED') {
-          throw new Error(regBody.error);
+        if (!regRes.ok && !(regRes.status === 409 && regBody.code === 'REJECTED')) {
+          throw new Error(regBody.error || 'ส่งใบสมัครไม่สำเร็จ');
         }
 
         // 2) ย่อรูปอัตโนมัติแล้วอัปโหลดทีละรายการ
@@ -276,7 +301,7 @@
           text: 'ขอบคุณที่สมัครเป็นพาร์ทเนอร์ RunDrop ทีมงานจะตรวจสอบเอกสารและติดต่อกลับทางไลน์ภายใน 1-3 วันทำการ',
           status: 'รอตรวจสอบ'
         });
-        e.target.reset();
+        document.getElementById('driverForm').classList.add('hidden');
       } catch (err) {
         showResult({ ok: false, title: 'ส่งใบสมัครไม่สำเร็จ', text: err.message });
       } finally {
