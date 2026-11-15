@@ -3,136 +3,211 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RunDrop - หน้าคนขับ</title>
+  <title>RunDrop - สมัครเป็นพาร์ทเนอร์คนขับ</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800">
-  <div class="max-w-md mx-auto p-4 space-y-4">
 
-    <div class="bg-white rounded-2xl shadow p-4 flex items-center justify-between">
-      <div>
-        <p class="text-xs text-gray-500">คนขับ</p>
-        <p id="driverName" class="font-bold text-green-900">กำลังโหลด...</p>
-        <p id="driverVehicle" class="text-[11px] text-gray-500"></p>
-      </div>
-      <label class="flex items-center gap-2 text-xs font-bold">
-        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">
-        ออนไลน์
-      </label>
-    </div>
-
-    <p id="statusMsg" class="text-xs text-center text-gray-500 min-h-[1rem]"></p>
-
-    <div>
-      <h2 class="font-bold text-green-900 mb-2">งานที่รับได้</h2>
-      <div id="orderList" class="space-y-3"></div>
+  <div class="w-full bg-white border-b border-gray-200">
+    <div class="max-w-2xl mx-auto px-4 pt-4 pb-3 text-center">
+      <img src="banner.jpg" alt="RunDrop Banner"
+        class="block mx-auto w-full max-w-sm md:max-w-md h-auto rounded-2xl shadow-md">
+      <h1 class="text-xl md:text-2xl font-black text-green-900 mt-3 leading-tight">สมัครเป็นพาร์ทเนอร์คนขับ RunDrop</h1>
+      <p class="text-[11px] md:text-xs font-bold text-green-800 leading-tight">กรอกข้อมูลและแนบเอกสารให้ครบ ทีมงานจะตรวจสอบและติดต่อกลับ</p>
     </div>
   </div>
 
+  <main class="max-w-md mx-auto p-4 pb-12">
+    <div class="bg-white rounded-2xl shadow-md p-4 space-y-4">
+      <form id="driverForm" class="space-y-4">
+
+        <h2 class="text-base font-bold text-green-900 border-b pb-2">ข้อมูลส่วนตัว</h2>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">ชื่อ-นามสกุล *</label>
+          <input type="text" id="fullName" required placeholder="ชื่อ-นามสกุลตามบัตรประชาชน"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">เบอร์โทรศัพท์ *</label>
+          <input type="tel" id="phone" required placeholder="0812345678"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">เลขบัตรประชาชน 13 หลัก *</label>
+          <input type="text" id="idCard" required inputmode="numeric" maxlength="13" placeholder="1234567890123"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">ประเภทรถที่ขับ *</label>
+          <select id="vehicleType" required
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs bg-white focus:outline-none focus:border-green-600">
+            <option value="">-- เลือกประเภทรถ --</option>
+            <option value="Motorcycle">มอเตอร์ไซค์ (Motorcycle)</option>
+            <option value="Sedan">รถเก๋ง (Sedan)</option>
+            <option value="Hatchback">รถแฮทช์แบ็ก (Hatchback)</option>
+            <option value="SUV">รถ SUV (SUV)</option>
+            <option value="Pickup">รถกระบะทั่วไป (Pickup)</option>
+            <option value="Box Pickup">กระบะตู้ทึบ (Box Pickup)</option>
+            <option value="Fence Pickup">รถกระบะคอก (Fence Pickup)</option>
+            <option value="Box Truck">รถบรรทุกตู้ทึบ (Box Truck)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">ทะเบียนรถ *</label>
+          <input type="text" id="plateNumber" required placeholder="เช่น กข 1234 กทม"
+            class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+        </div>
+
+        <h2 class="text-base font-bold text-green-900 border-b pb-2 pt-2">เอกสารยืนยันตัวตน</h2>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">1. รูปถ่ายบัตรประชาชน *</label>
+          <input type="file" id="fileIdCard" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">2. รูปถ่ายใบขับขี่ *</label>
+          <input type="file" id="fileLicense" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">3. ใบตรวจประวัติอาชญากรรม *</label>
+          <input type="file" id="fileCriminal" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold mb-1">4. รูปถ่ายหน้าคนขับ *</label>
+          <input type="file" id="fileSelfie" accept="image/*" required
+            class="w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-yellow-100 file:text-green-800 file:font-bold">
+          <p class="text-[10px] text-gray-500 mt-1">ถ่ายหน้าตรง ไม่สวมหมวกหรือแว่นกันแดด เห็นใบหน้าชัดเจน</p>
+        </div>
+
+        <label class="flex items-start gap-2 text-[11px] text-gray-700">
+          <input type="checkbox" id="consent" required class="mt-0.5 w-4 h-4 accent-green-600">
+          <span>ข้าพเจ้ายินยอมให้ RunDrop เก็บและใช้เอกสารและรูปถ่ายข้างต้นเพื่อยืนยันตัวตนและตรวจสอบคุณสมบัติคนขับเท่านั้น โดยเก็บไว้ไม่เกินระยะเวลาที่จำเป็น</span>
+        </label>
+
+        <p class="text-[10px] text-gray-500">ข้อมูลส่วนบุคคลจะใช้เพื่อยืนยันตัวตนคนขับเท่านั้น</p>
+
+        <p id="formMessage" class="text-xs text-center min-h-[1rem]"></p>
+
+        <button type="submit" id="submitBtn"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow-md transition text-sm disabled:opacity-60">
+          ส่งใบสมัครคนขับ
+        </button>
+      </form>
+    </div>
+  </main>
+
   <script>
     const LIFF_ID = '2012603605-2lSXUvu0';
+    const MAX_MB = 3;
+    const DOCS = [
+      { inputId: 'fileIdCard',   docType: 'id_card',         label: 'รูปถ่ายบัตรประชาชน' },
+      { inputId: 'fileLicense',  docType: 'driver_license',  label: 'รูปถ่ายใบขับขี่' },
+      { inputId: 'fileCriminal', docType: 'criminal_record', label: 'ใบตรวจประวัติอาชญากรรม' },
+      { inputId: 'fileSelfie',   docType: 'selfie',          label: 'รูปถ่ายหน้าคนขับ' }
+    ];
     let idToken = null;
-    let pollTimer = null;
 
-    function setMsg(text) {
-      document.getElementById('statusMsg').textContent = text;
+    function showMessage(text, isError = false) {
+      const el = document.getElementById('formMessage');
+      el.textContent = text;
+      el.className = 'text-xs text-center min-h-[1rem] ' + (isError ? 'text-red-600' : 'text-green-700');
     }
 
-    async function api(path, options = {}) {
-      const res = await fetch(path, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-line-id-token': idToken,
-          ...(options.headers || {})
-        }
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'เกิดข้อผิดพลาด');
-      return body;
-    }
-
-    function escapeHtml(s) {
-      return String(s ?? '').replace(/[&<>"']/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      }[c]));
-    }
-
-    function renderOrders(orders) {
-      const box = document.getElementById('orderList');
-      box.innerHTML = '';
-      if (!orders.length) {
-        box.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">ยังไม่มีงานใหม่</p>';
-        return;
-      }
-      orders.forEach(o => {
-        const card = document.createElement('div');
-        card.className = 'bg-white rounded-xl shadow p-3 space-y-1';
-        card.innerHTML = `
-          <div class="flex justify-between text-xs">
-            <span class="font-bold">${escapeHtml(o.tracking_code)}</span>
-            <span class="font-bold text-green-700">${escapeHtml(o.price)} ฿</span>
-          </div>
-          <p class="text-xs">รับ: ${escapeHtml(o.pickup_place)}</p>
-          <p class="text-xs">ส่ง: ${escapeHtml(o.destination)}</p>
-          <p class="text-[11px] text-gray-500">ระยะ ${escapeHtml(o.distance_km)} กม.${o.customer_note ? ' · ' + escapeHtml(o.customer_note) : ''}</p>
-        `;
-        const btn = document.createElement('button');
-        btn.className = 'w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg';
-        btn.textContent = 'รับงานนี้';
-        btn.addEventListener('click', () => acceptOrder(o.id));
-        card.appendChild(btn);
-        box.appendChild(card);
+    function readAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result).split(',')[1]);
+        reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
+        reader.readAsDataURL(file);
       });
     }
 
-    async function loadOrders() {
-      try {
-        const { orders } = await api('/api/driver/available');
-        renderOrders(orders);
-      } catch (err) {
-        setMsg(err.message);
+    function validateFiles() {
+      for (const d of DOCS) {
+        const file = document.getElementById(d.inputId).files[0];
+        if (!file) return `กรุณาเลือก${d.label}`;
+        if (!file.type.startsWith('image/')) return `${d.label} ต้องเป็นไฟล์รูปภาพ`;
+        if (file.size > MAX_MB * 1024 * 1024) return `${d.label} ต้องมีขนาดไม่เกิน ${MAX_MB} MB`;
       }
+      return null;
     }
-
-    async function acceptOrder(orderId) {
-      try {
-        const { order } = await api('/api/driver/accept', {
-          method: 'POST',
-          body: JSON.stringify({ orderId })
-        });
-        setMsg(`รับงาน ${order.tracking_code} แล้ว`);
-      } catch (err) {
-        setMsg(err.message);
-      }
-      loadOrders();
-    }
-
-    // ปุ่มออนไลน์ยังไม่เชื่อมเซิร์ฟเวอร์ (รอ api/driver/online.js)
-    document.getElementById('onlineToggle').addEventListener('change', (e) => {
-      e.target.checked = !e.target.checked;
-      setMsg('การเปิดออนไลน์ยังไม่เชื่อมกับเซิร์ฟเวอร์');
-    });
 
     async function init() {
       try {
         await liff.init({ liffId: LIFF_ID });
         if (!liff.isLoggedIn()) { liff.login(); return; }
-
         idToken = liff.getIDToken();
-
-        const me = await api('/api/driver/me');
-        document.getElementById('driverName').textContent = me.name;
-        document.getElementById('driverVehicle').textContent = `${me.vehicleType} · ${me.plateNumber}`;
-        document.getElementById('onlineToggle').checked = me.isOnline;
-
-        loadOrders();
-        pollTimer = setInterval(loadOrders, 10000);
       } catch (err) {
-        setMsg(err.message);
+        showMessage('ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาเปิดจากลิงก์ LIFF', true);
       }
     }
+
+    document.getElementById('driverForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!idToken) { showMessage('ยังไม่ได้เชื่อมต่อ LINE กรุณาลองใหม่', true); return; }
+
+      const idCard = document.getElementById('idCard').value.trim();
+      if (!/^\d{13}$/.test(idCard)) { showMessage('เลขบัตรประชาชนต้องมี 13 หลัก', true); return; }
+      if (!document.getElementById('consent').checked) { showMessage('กรุณายินยอมก่อนส่งใบสมัคร', true); return; }
+
+      const fileError = validateFiles();
+      if (fileError) { showMessage(fileError, true); return; }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'กำลังส่งใบสมัคร...';
+
+      try {
+        // 1) บันทึกข้อมูลส่วนตัว (409 = เคยสมัครแล้ว ให้อัปโหลดเอกสารต่อได้)
+        const regRes = await fetch('/api/driver/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-line-id-token': idToken },
+          body: JSON.stringify({
+            name: document.getElementById('fullName').value.trim(),
+            phone: document.getElementById('phone').value.trim(),
+            idCard,
+            vehicleType: document.getElementById('vehicleType').value,
+            plateNumber: document.getElementById('plateNumber').value.trim()
+          })
+        });
+        const regBody = await regRes.json().catch(() => ({}));
+        if (!regRes.ok && regRes.status !== 409) throw new Error(regBody.error || 'ส่งใบสมัครไม่สำเร็จ');
+
+        // 2) อัปโหลดเอกสารทีละไฟล์
+        for (const d of DOCS) {
+          const file = document.getElementById(d.inputId).files[0];
+          btn.textContent = `กำลังอัปโหลด ${d.label}...`;
+          const data = await readAsBase64(file);
+          const res = await fetch('/api/driver/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-line-id-token': idToken },
+            body: JSON.stringify({ docType: d.docType, mimeType: file.type, data })
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(`${d.label}: ${body.error || 'อัปโหลดไม่สำเร็จ'}`);
+        }
+
+        showMessage('ส่งใบสมัครและเอกสารเรียบร้อย ทีมงานจะตรวจสอบและติดต่อกลับ');
+        e.target.reset();
+      } catch (err) {
+        showMessage(err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'ส่งใบสมัครคนขับ';
+      }
+    });
 
     document.addEventListener('DOMContentLoaded', init);
   </script>
