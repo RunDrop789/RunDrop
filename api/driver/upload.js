@@ -49,11 +49,22 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'db error' });
   }
   if (!driver) return res.status(403).json({ error: 'ยังไม่ได้สมัครคนขับ' });
-  if (driver.status === 'PENDING') {
-    return res.status(409).json({ error: 'อยู่ระหว่างรอตรวจสอบ ไม่สามารถส่งเอกสารซ้ำได้', code: 'PENDING' });
-  }
+
   if (driver.status === 'APPROVED') {
     return res.status(409).json({ error: 'ได้รับการอนุมัติแล้ว', code: 'APPROVED' });
+  }
+  if (driver.status === 'PENDING') {
+    const { count, error: countErr } = await supabase
+      .from('driver_documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('driver_id', driver.id);
+    if (countErr) {
+      console.error('upload count error:', countErr.code);
+      return res.status(500).json({ error: 'db error' });
+    }
+    if (count >= DOC_TYPES.length) {
+      return res.status(409).json({ error: 'อยู่ระหว่างรอตรวจสอบ ไม่สามารถส่งเอกสารซ้ำได้', code: 'PENDING' });
+    }
   }
 
   const { data: oldDocs, error: oldErr } = await supabase
