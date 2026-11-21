@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RunDrop - เธซเธเนเธฒเธเธเธเธฑเธ</title>
+  <title>RunDrop - หน้าคนขับ</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,84 +12,88 @@
 <body class="bg-gray-50 font-sans text-gray-800">
   <div class="max-w-md mx-auto p-4 space-y-4 pb-10">
 
-    <!-- เนเธเธฃเนเธเธฅเน -->
+    <!-- โปรไฟล์ -->
     <div class="bg-white rounded-2xl shadow p-4 flex items-center gap-3">
       <img id="selfie" class="w-16 h-16 rounded-full object-cover bg-gray-200" alt="">
       <div class="flex-1 min-w-0">
-        <p id="name" class="font-bold text-green-900 truncate">เธเธณเธฅเธฑเธเนเธซเธฅเธ”...</p>
+        <p id="name" class="font-bold text-green-900 truncate">กำลังโหลด...</p>
         <p id="vehicle" class="text-[11px] text-gray-500"></p>
       </div>
       <label id="onlineWrap" class="hidden flex items-center gap-2 text-xs font-bold">
-        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">เธญเธญเธเนเธฅเธเน
+        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">ออนไลน์
       </label>
     </div>
 
     <p id="msg" class="text-xs text-center text-red-600 min-h-[1rem]"></p>
 
-    <!-- เธชเธ–เธฒเธเธฐเนเธเธชเธกเธฑเธเธฃ (เธขเธฑเธเนเธกเนเธญเธเธธเธกเธฑเธ•เธด) -->
+    <!-- สถานะใบสมัคร (ยังไม่อนุมัติ) -->
     <div id="regCard" class="hidden bg-white rounded-2xl shadow p-4 space-y-2">
-      <h2 class="font-bold text-green-900">เธชเธ–เธฒเธเธฐเนเธเธชเธกเธฑเธเธฃ</h2>
+      <h2 class="font-bold text-green-900">สถานะใบสมัคร</h2>
       <p id="regStatus" class="text-sm font-bold"></p>
       <p id="regReason" class="text-xs text-red-600"></p>
       <ul id="docList" class="text-xs space-y-1"></ul>
     </div>
 
-    <!-- เธชเนเธงเธเธซเธฅเธฑเธเน€เธกเธทเนเธญเนเธ”เนเธฃเธฑเธเธญเธเธธเธกเธฑเธ•เธด -->
+    <!-- ส่วนหลักเมื่อได้รับอนุมัติ -->
     <div id="dashboard" class="hidden space-y-4">
 
-      <!-- เธเธฒเธเธ—เธตเนเธเธณเธฅเธฑเธเธ—เธณ -->
+      <!-- งานที่กำลังทำ -->
       <div id="activeCard" class="hidden bg-white rounded-2xl shadow p-4 space-y-3">
         <div class="flex justify-between text-xs">
           <span id="aTrack" class="font-bold"></span>
           <span id="aPrice" class="font-bold text-green-700"></span>
         </div>
         <p id="aStatus" class="text-xs font-bold text-green-800"></p>
-        <p class="text-xs">เธฃเธฑเธ: <span id="aPick"></span></p>
-        <p class="text-xs">เธชเนเธ: <span id="aDrop"></span></p>
-        <p class="text-xs">เธฅเธนเธเธเนเธฒ: <span id="aCust"></span> ยท <a id="aTel" class="text-green-700 font-bold">เนเธ—เธฃเธซเธฒเธฅเธนเธเธเนเธฒ</a></p>
+        <p class="text-xs">รับ: <span id="aPick"></span></p>
+        <p class="text-xs">ส่ง: <span id="aDrop"></span></p>
+        <p class="text-xs">ลูกค้า: <span id="aCust"></span> · <a id="aTel" class="text-green-700 font-bold">โทรหาลูกค้า</a></p>
         <div id="jobMap" class="h-48 rounded-xl border"></div>
+        <a id="navBtn" target="_blank" rel="noopener"
+          class="hidden block w-full text-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg">
+          🧭 นำทาง
+        </a>
         <button id="advanceBtn" class="hidden w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg"></button>
 
         <div>
-          <h3 class="text-xs font-bold mb-1">เนเธเธ—เธเธฑเธเธฅเธนเธเธเนเธฒ</h3>
+          <h3 class="text-xs font-bold mb-1">แชทกับลูกค้า</h3>
           <div id="chatBox" class="h-40 overflow-y-auto border rounded-lg p-2 space-y-1 bg-gray-50"></div>
           <form id="chatForm" class="flex gap-2 mt-2">
-            <input id="chatInput" maxlength="300" placeholder="เธเธดเธกเธเนเธเนเธญเธเธงเธฒเธก"
+            <input id="chatInput" maxlength="300" placeholder="พิมพ์ข้อความ"
               class="flex-1 border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
-            <button class="bg-green-600 text-white text-xs font-bold px-3 rounded-lg">เธชเนเธ</button>
+            <button class="bg-green-600 text-white text-xs font-bold px-3 rounded-lg">ส่ง</button>
           </form>
         </div>
       </div>
 
-      <!-- เธชเธ–เธดเธ•เธด -->
+      <!-- สถิติ -->
       <div class="bg-white rounded-2xl shadow p-4 space-y-3">
         <div class="flex gap-2 text-xs font-bold">
-          <button data-g="day" class="gbtn flex-1 py-1 rounded-lg">เธฃเธฒเธขเธงเธฑเธ</button>
-          <button data-g="week" class="gbtn flex-1 py-1 rounded-lg">เธฃเธฒเธขเธชเธฑเธเธ”เธฒเธซเน</button>
-          <button data-g="month" class="gbtn flex-1 py-1 rounded-lg">เธฃเธฒเธขเน€เธ”เธทเธญเธ</button>
+          <button data-g="day" class="gbtn flex-1 py-1 rounded-lg">รายวัน</button>
+          <button data-g="week" class="gbtn flex-1 py-1 rounded-lg">รายสัปดาห์</button>
+          <button data-g="month" class="gbtn flex-1 py-1 rounded-lg">รายเดือน</button>
         </div>
         <div id="bars" class="flex items-end gap-[2px] h-28"></div>
         <div id="barLabels" class="flex text-[9px] text-gray-400"></div>
         <p id="barDetail" class="text-xs text-center font-bold"></p>
         <p id="totals" class="text-[11px] text-gray-500 text-center"></p>
-        <p class="text-[10px] text-gray-400 text-center">เธขเนเธญเธเธซเธฅเธฑเธ 3 เน€เธ”เธทเธญเธ ยท เธขเธญเธ”เน€เธเนเธเธเนเธฒเธเธฃเธดเธเธฒเธฃเธเธญเธเธเธฒเธ เธขเธฑเธเนเธกเนเธซเธฑเธเธเนเธฒเนเธเธฅเธ•เธเธญเธฃเนเธก</p>
+        <p class="text-[10px] text-gray-400 text-center">ย้อนหลัง 3 เดือน · ยอดเป็นค่าบริการของงาน ยังไม่หักค่าแพลตฟอร์ม</p>
       </div>
 
-      <!-- เธเธฒเธเธ—เธตเนเธฃเธฑเธเนเธ”เน -->
+      <!-- งานที่รับได้ -->
       <div>
-        <h2 class="font-bold text-green-900 mb-2">เธเธฒเธเธ—เธตเนเธฃเธฑเธเนเธ”เน</h2>
+        <h2 class="font-bold text-green-900 mb-2">งานที่รับได้</h2>
         <div id="orderList" class="space-y-3"></div>
       </div>
     </div>
   </div>
 
-  <!-- Modal เธขเธทเธเธขเธฑเธเธเธฒเธฃเธ—เธณเธเธฒเธ -->
+  <!-- Modal ยืนยันการทำงาน -->
   <div id="confirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 items-center justify-center p-4 z-50">
     <div class="bg-white rounded-2xl max-w-xs w-full p-5 text-center space-y-3">
       <p id="confirmText" class="text-sm font-bold"></p>
       <div class="flex gap-2">
-        <button id="confirmNo" class="w-1/2 bg-gray-200 py-2 rounded-lg text-xs font-bold">เธขเธเน€เธฅเธดเธ</button>
-        <button id="confirmYes" class="w-1/2 bg-green-600 text-white py-2 rounded-lg text-xs font-bold">เธขเธทเธเธขเธฑเธ</button>
+        <button id="confirmNo" class="w-1/2 bg-gray-200 py-2 rounded-lg text-xs font-bold">ยกเลิก</button>
+        <button id="confirmYes" class="w-1/2 bg-green-600 text-white py-2 rounded-lg text-xs font-bold">ยืนยัน</button>
       </div>
     </div>
   </div>
@@ -97,9 +101,9 @@
   <script>
     const LIFF_ID = '2012603605-C9Lh060m';
     const TZ = 'Asia/Bangkok';
-    const STATUS_TH = { ACCEPTED: 'เธฃเธฑเธเธเธฒเธเนเธฅเนเธง เธเธณเธฅเธฑเธเนเธเธฃเธฑเธเธเธญเธ', PICKED_UP: 'เธฃเธฑเธเธเธญเธเนเธฅเนเธง เธเธณเธฅเธฑเธเนเธเธชเนเธ', DELIVERED: 'เธชเนเธเนเธฅเนเธง' };
-    const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'เธฃเธฑเธเธชเธดเธเธเนเธฒเนเธฅเนเธง' }, PICKED_UP: { to: 'DELIVERED', label: 'เธชเนเธเธชเธดเธเธเนเธฒเนเธฅเนเธง' } };
-    const DOC_TH = { id_card: 'เธเธฑเธ•เธฃเธเธฃเธฐเธเธฒเธเธ', driver_license: 'เนเธเธเธฑเธเธเธตเน', criminal_record: 'เนเธเธ•เธฃเธงเธเธเธฃเธฐเธงเธฑเธ•เธดเธญเธฒเธเธเธฒเธเธฃเธฃเธก', selfie: 'เธฃเธนเธเธ–เนเธฒเธขเธซเธเนเธฒ' };
+    const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
+    const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
+    const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
 
     let idToken = null, activeOrder = null, history = [], gran = 'day', selectedKey = null;
     let map = null, mapLayer = null, mapOrderId = null;
@@ -118,30 +122,30 @@
         headers: { 'Content-Type': 'application/json', 'x-line-id-token': idToken, ...(opt.headers || {}) }
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || 'เน€เธเธดเธ”เธเนเธญเธเธดเธ”เธเธฅเธฒเธ”');
+      if (!res.ok) throw new Error(body.error || 'เกิดข้อผิดพลาด');
       return body;
     }
 
-    // ---------- เธชเธ–เธฒเธเธฐเนเธเธชเธกเธฑเธเธฃ / เนเธเธฃเนเธเธฅเน ----------
+    // ---------- สถานะใบสมัคร / โปรไฟล์ ----------
     async function loadStatus() {
       const st = await api('/api/driver?action=status');
       if (!st.registered) {
         $('regCard').classList.remove('hidden');
-        $('regStatus').textContent = 'เธขเธฑเธเนเธกเนเนเธ”เนเธชเธกเธฑเธเธฃเธเธเธเธฑเธ';
-        $('regReason').textContent = 'เธเธฃเธธเธ“เธฒเธชเธกเธฑเธเธฃเธเนเธฒเธเธฅเธดเธเธเนเธชเธกเธฑเธเธฃเธเธเธเธฑเธ RunDrop';
+        $('regStatus').textContent = 'ยังไม่ได้สมัครคนขับ';
+        $('regReason').textContent = 'กรุณาสมัครผ่านลิงก์สมัครคนขับ RunDrop';
         return false;
       }
       $('name').textContent = st.name;
-      $('vehicle').textContent = `${st.vehicleType} ยท ${st.plateNumber}`;
+      $('vehicle').textContent = `${st.vehicleType} · ${st.plateNumber}`;
       if (st.selfieUrl) $('selfie').src = st.selfieUrl;
 
       if (st.status !== 'APPROVED') {
-        const label = { PENDING: 'เธฃเธญเธ•เธฃเธงเธเธชเธญเธ', REJECTED: 'เนเธกเนเธเนเธฒเธ' }[st.status] || st.status;
+        const label = { PENDING: 'รอตรวจสอบ', REJECTED: 'ไม่ผ่าน' }[st.status] || st.status;
         $('regCard').classList.remove('hidden');
-        $('regStatus').textContent = 'เธชเธ–เธฒเธเธฐ: ' + label;
+        $('regStatus').textContent = 'สถานะ: ' + label;
         $('regReason').textContent = st.status === 'REJECTED'
-          ? 'เน€เธซเธ•เธธเธเธฅ: ' + (st.rejectReason || '-') + ' (เธเธฃเธธเธ“เธฒเธชเนเธเน€เธญเธเธชเธฒเธฃเนเธซเธกเนเธเนเธฒเธเธฅเธดเธเธเนเธชเธกเธฑเธเธฃเธเธเธเธฑเธ)' : '';
-        $('docList').innerHTML = st.docs.map(d => `<li>${d.uploaded ? 'โ…' : 'โ'} ${DOC_TH[d.type]}</li>`).join('');
+          ? 'เหตุผล: ' + (st.rejectReason || '-') + ' (กรุณาส่งเอกสารใหม่ผ่านลิงก์สมัครคนขับ)' : '';
+        $('docList').innerHTML = st.docs.map(d => `<li>${d.uploaded ? '✅' : '❌'} ${DOC_TH[d.type]}</li>`).join('');
         return false;
       }
 
@@ -150,7 +154,7 @@
       return true;
     }
 
-    // ---------- เธเธฒเธเธเธฑเธเธเธธเธเธฑเธ ----------
+    // ---------- งานปัจจุบัน ----------
     async function loadJobs() {
       const d = await api('/api/driver?action=jobs');
       history = d.history;
@@ -170,7 +174,7 @@
       const o = activeOrder;
       card.classList.remove('hidden');
       $('aTrack').textContent = o.tracking_code;
-      $('aPrice').textContent = o.price + ' เธฟ';
+      $('aPrice').textContent = o.price + ' ฿';
       $('aStatus').textContent = STATUS_TH[o.status] || o.status;
       $('aPick').textContent = o.pickup_place;
       $('aDrop').textContent = o.destination;
@@ -182,8 +186,28 @@
       btn.classList.toggle('hidden', !n);
       if (n) btn.textContent = n.label;
 
+      updateNavBtn(o);
+
       if (mapOrderId !== o.id) { drawMap(o); mapOrderId = o.id; }
       startChat(o.id);
+    }
+
+    function navTarget(o) {
+      // ยังไม่รับของ → ไปจุดรับ, รับของแล้ว → ไปจุดส่ง
+      if (o.status === 'ACCEPTED') return { lat: o.pickup_lat, lng: o.pickup_lng };
+      return { lat: o.dropoff_lat, lng: o.dropoff_lng };
+    }
+
+    function updateNavBtn(o) {
+      const t = navTarget(o);
+      const btn = $('navBtn');
+      if (t.lat == null || t.lng == null) {
+        btn.classList.add('hidden');
+        return;
+      }
+      btn.href = `https://www.google.com/maps/dir/?api=1&destination=${t.lat},${t.lng}&travelmode=driving`;
+      btn.textContent = o.status === 'ACCEPTED' ? '🧭 นำทางไปจุดรับ' : '🧭 นำทางไปจุดส่ง';
+      btn.classList.remove('hidden');
     }
 
     function drawMap(o) {
@@ -198,18 +222,18 @@
       if (o.pickup_lat == null || o.dropoff_lat == null) return;
       const p = [Number(o.pickup_lat), Number(o.pickup_lng)];
       const d = [Number(o.dropoff_lat), Number(o.dropoff_lng)];
-      L.circleMarker(p, { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('เธเธธเธ”เธฃเธฑเธ').addTo(mapLayer);
-      L.circleMarker(d, { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('เธเธธเธ”เธชเนเธ').addTo(mapLayer);
+      L.circleMarker(p, { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(mapLayer);
+      L.circleMarker(d, { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(mapLayer);
       L.polyline([p, d], { color: '#16a34a', dashArray: '6 6' }).addTo(mapLayer);
       setTimeout(() => { map.invalidateSize(); map.fitBounds([p, d], { padding: [30, 30] }); }, 100);
     }
 
-    // ---------- เธขเธทเธเธขเธฑเธเธเธฑเนเธเธ•เธญเธเธเธฒเธ ----------
+    // ---------- ยืนยันขั้นตอนงาน ----------
     $('advanceBtn').addEventListener('click', () => {
       const n = NEXT[activeOrder?.status];
       if (!n) return;
       pendingAction = { orderId: activeOrder.id, next: n.to };
-      $('confirmText').textContent = `เธขเธทเธเธขเธฑเธ: ${n.label}?`;
+      $('confirmText').textContent = `ยืนยัน: ${n.label}?`;
       $('confirmModal').classList.remove('hidden');
       $('confirmModal').classList.add('flex');
     });
@@ -221,12 +245,12 @@
       $('confirmNo').click();
       try {
         await api('/api/driver?action=status-update', { method: 'POST', body: JSON.stringify(pendingAction) });
-        say('เธญเธฑเธเน€เธ”เธ•เธชเธ–เธฒเธเธฐเนเธฅเนเธง');
+        say('อัปเดตสถานะแล้ว');
         await refresh();
       } catch (e) { say(e.message); }
     });
 
-    // ---------- เนเธเธ— ----------
+    // ---------- แชท ----------
     function startChat(orderId) {
       if (chatOrderId === orderId) return;
       stopChat();
@@ -246,7 +270,7 @@
         ? messages.map(m => `<div class="flex ${m.sender === 'driver' ? 'justify-end' : 'justify-start'}">
             <span class="max-w-[75%] px-2 py-1 rounded-lg text-xs ${m.sender === 'driver' ? 'bg-green-600 text-white' : 'bg-white border'}">${esc(m.body)}</span>
           </div>`).join('')
-        : '<p class="text-[11px] text-gray-400 text-center">เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธเธงเธฒเธก</p>';
+        : '<p class="text-[11px] text-gray-400 text-center">ยังไม่มีข้อความ</p>';
       $('chatBox').scrollTop = $('chatBox').scrollHeight;
     }
     $('chatForm').addEventListener('submit', async e => {
@@ -260,7 +284,7 @@
       } catch (err) { say(err.message); }
     });
 
-    // ---------- เธชเธ–เธดเธ•เธด ----------
+    // ---------- สถิติ ----------
     function dayKey(ms) { return new Date(ms).toLocaleDateString('sv-SE', { timeZone: TZ }); }
     function shiftDay(k, n) {
       const d = new Date(k + 'T00:00:00Z');
@@ -268,7 +292,7 @@
       return d.toISOString().slice(0, 10);
     }
     function weekStart(k) {
-      const wd = (new Date(k + 'T00:00:00Z').getUTCDay() + 6) % 7; // เธเธฑเธเธ—เธฃเน = 0
+      const wd = (new Date(k + 'T00:00:00Z').getUTCDay() + 6) % 7; // จันทร์ = 0
       return shiftDay(k, -wd);
     }
     function keyOf(ms) {
@@ -305,11 +329,11 @@
       const sel = selectedKey && keys.includes(selectedKey) ? selectedKey : keys[keys.length - 1];
       selectedKey = sel;
       const a = agg[sel] || { count: 0, sum: 0 };
-      $('barDetail').textContent = `${sel}: ${a.count} เธเธฒเธ ยท ${a.sum.toLocaleString()} เธฟ`;
+      $('barDetail').textContent = `${sel}: ${a.count} งาน · ${a.sum.toLocaleString()} ฿`;
 
       const total = keys.reduce((s, k) => s + (agg[k]?.count || 0), 0);
       const totalSum = keys.reduce((s, k) => s + (agg[k]?.sum || 0), 0);
-      $('totals').textContent = `เธเนเธงเธเธ—เธตเนเนเธชเธ”เธ เธฃเธงเธก ${total} เธเธฒเธ ยท ${totalSum.toLocaleString()} เธฟ`;
+      $('totals').textContent = `ช่วงที่แสดง รวม ${total} งาน · ${totalSum.toLocaleString()} ฿`;
       document.querySelectorAll('.gbtn').forEach(b => {
         b.classList.toggle('bg-green-600', b.dataset.g === gran);
         b.classList.toggle('text-white', b.dataset.g === gran);
@@ -326,14 +350,14 @@
       renderStats();
     }));
 
-    // ---------- เธเธฒเธเธ—เธตเนเธฃเธฑเธเนเธ”เน ----------
+    // ---------- งานที่รับได้ ----------
     async function loadAvailable() {
       if (activeOrder) {
-        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-2">เธกเธตเธเธฒเธเธ—เธตเนเธเธณเธฅเธฑเธเธ—เธณเธญเธขเธนเน เธ—เธณเนเธซเนเน€เธชเธฃเนเธเธเนเธญเธเธฃเธฑเธเธเธฒเธเนเธซเธกเน</p>';
+        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-2">มีงานที่กำลังทำอยู่ ทำให้เสร็จก่อนรับงานใหม่</p>';
         return;
       }
       if (!$('onlineToggle').checked) {
-        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เน€เธเธดเธ”เธญเธญเธเนเธฅเธเนเน€เธเธทเนเธญเธฃเธฑเธเธเธฒเธ</p>';
+        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เปิดออนไลน์เพื่อรับงาน</p>';
         return;
       }
       const { orders } = await api('/api/driver?action=available');
@@ -342,14 +366,14 @@
           <div class="bg-white rounded-xl shadow p-3 space-y-1">
             <div class="flex justify-between text-xs">
               <span class="font-bold">${esc(o.tracking_code)}</span>
-              <span class="font-bold text-green-700">${esc(o.price)} เธฟ</span>
+              <span class="font-bold text-green-700">${esc(o.price)} ฿</span>
             </div>
-            <p class="text-xs">เธฃเธฑเธ: ${esc(o.pickup_place)}</p>
-            <p class="text-xs">เธชเนเธ: ${esc(o.destination)}</p>
-            <p class="text-[11px] text-gray-500">เธฃเธฐเธขเธฐ ${esc(o.distance_km)} เธเธก.${o.customer_note ? ' ยท ' + esc(o.customer_note) : ''}</p>
-            <button data-id="${o.id}" class="accept w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg">เธฃเธฑเธเธเธฒเธเธเธตเน</button>
+            <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
+            <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
+            <p class="text-[11px] text-gray-500">ระยะ ${esc(o.distance_km)} กม.${o.customer_note ? ' · ' + esc(o.customer_note) : ''}</p>
+            <button data-id="${o.id}" class="accept w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg">รับงานนี้</button>
           </div>`).join('')
-        : '<p class="text-xs text-gray-400 text-center py-4">เธขเธฑเธเนเธกเนเธกเธตเธเธฒเธเนเธซเธกเน</p>';
+        : '<p class="text-xs text-gray-400 text-center py-4">ยังไม่มีงานใหม่</p>';
     }
 
     $('orderList').addEventListener('click', async e => {
@@ -358,17 +382,17 @@
         const { order } = await api('/api/driver?action=accept', {
           method: 'POST', body: JSON.stringify({ orderId: Number(e.target.dataset.id) })
         });
-        say(`เธฃเธฑเธเธเธฒเธ ${order.tracking_code} เนเธฅเนเธง`);
+        say(`รับงาน ${order.tracking_code} แล้ว`);
       } catch (err) { say(err.message); }
       await refresh();
     });
 
-    // ---------- เธญเธญเธเนเธฅเธเน ----------
+    // ---------- ออนไลน์ ----------
     $('onlineToggle').addEventListener('change', async e => {
       const v = e.target.checked;
       try {
         await api('/api/driver?action=online', { method: 'POST', body: JSON.stringify({ isOnline: v }) });
-        say(v ? 'เธญเธญเธเนเธฅเธเนเนเธฅเนเธง' : 'เธญเธญเธเนเธฅเธเนเนเธฅเนเธง');
+        say(v ? 'ออนไลน์แล้ว' : 'ออฟไลน์แล้ว');
         await loadAvailable();
       } catch (err) {
         e.target.checked = !v;
@@ -376,7 +400,19 @@
       }
     });
 
-    // ---------- เน€เธฃเธดเนเธกเธ•เนเธ ----------
+    // ---------- GPS คนขับ ----------
+    function startGps() {
+      if (!('geolocation' in navigator)) return;
+      navigator.geolocation.watchPosition(
+        p => api('/api/driver?action=location', {
+          method: 'POST', body: JSON.stringify({ lat: p.coords.latitude, lng: p.coords.longitude })
+        }).catch(() => {}),
+        () => say('กรุณาอนุญาตตำแหน่ง GPS'),
+        { enableHighAccuracy: true, maximumAge: 10000 }
+      );
+    }
+
+    // ---------- เริ่มต้น ----------
     async function refresh() {
       try { await loadJobs(); await loadAvailable(); } catch (e) { say(e.message); }
     }
@@ -389,10 +425,11 @@
         const approved = await loadStatus();
         if (!approved) return;
         $('dashboard').classList.remove('hidden');
+        startGps();
         await refresh();
         pollTimer = setInterval(refresh, 10000);
       } catch (err) {
-        say(err.message || 'เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธทเนเธญเธกเธ•เนเธญ LINE เนเธ”เน');
+        say(err.message || 'ไม่สามารถเชื่อมต่อ LINE ได้');
       }
     }
 
@@ -400,4 +437,3 @@
   </script>
 </body>
 </html>
-
