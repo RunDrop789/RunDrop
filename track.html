@@ -115,7 +115,7 @@
 
     // ---------- แชท ----------
     async function loadChat() {
-      const res = await fetch(`/api/track/messages?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
+      const res = await fetch(`/api/track?type=messages?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
       const { messages = [] } = await res.json();
       $('chatBox').innerHTML = messages.map(m => `
         <div class="flex ${m.sender === 'customer' ? 'justify-end' : 'justify-start'}">
@@ -128,7 +128,7 @@
       e.preventDefault();
       const body = $('chatInput').value.trim();
       if (!body) return;
-      await fetch('/api/track/messages', {
+      await fetch('/api/track?type=messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, phone, body })
       });
