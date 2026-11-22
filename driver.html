@@ -205,7 +205,8 @@
         btn.classList.add('hidden');
         return;
       }
-      btn.href = `https://www.google.com/maps/dir/?api=1&destination=${t.lat},${t.lng}&travelmode=driving`;
+      const dest = `${Number(t.lat)},${Number(t.lng)}`;
+      btn.href = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
       btn.textContent = o.status === 'ACCEPTED' ? '🧭 นำทางไปจุดรับ' : '🧭 นำทางไปจุดส่ง';
       btn.classList.remove('hidden');
     }
