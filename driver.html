@@ -210,6 +210,18 @@
       btn.classList.remove('hidden');
     }
 
+        let routeReqId = 0;
+
+    async function fetchRoadRoute(p, d) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${p[1]},${p[0]};${d[1]},${d[0]}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
+      const data = await res.json();
+      if (data.code !== 'Ok' || !data.routes?.length) throw new Error('OSRM no route');
+      // GeoJSON ให้ [lng, lat] ต้องสลับเป็น [lat, lng] สำหรับ Leaflet
+      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    }
+
     function drawMap(o) {
       if (!map) {
         map = L.map('jobMap');
@@ -224,8 +236,19 @@
       const d = [Number(o.dropoff_lat), Number(o.dropoff_lng)];
       L.circleMarker(p, { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(mapLayer);
       L.circleMarker(d, { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(mapLayer);
-      L.polyline([p, d], { color: '#16a34a', dashArray: '6 6' }).addTo(mapLayer);
-      setTimeout(() => { map.invalidateSize(); map.fitBounds([p, d], { padding: [30, 30] }); }, 100);
+
+      // วาดเส้นตรงไว้ก่อน แล้วแทนด้วยเส้นตามถนนเมื่อดึงสำเร็จ
+      const straight = L.polyline([p, d], { color: '#16a34a', dashArray: '6 6' }).addTo(mapLayer);
+      map.fitBounds([p, d], { padding: [30, 30] });
+      setTimeout(() => map.invalidateSize(), 100);
+
+      const reqId = ++routeReqId;
+      fetchRoadRoute(p, d).then(latlngs => {
+        if (reqId !== routeReqId) return; // งานเปลี่ยนไปแล้ว
+        straight.remove();
+        L.polyline(latlngs, { color: '#16a34a', weight: 5, opacity: 0.8 }).addTo(mapLayer);
+        map.fitBounds(latlngs, { padding: [30, 30] });
+      }).catch(() => {});
     }
 
     // ---------- ยืนยันขั้นตอนงาน ----------
