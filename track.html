@@ -16,7 +16,9 @@
       <p class="text-sm font-bold text-green-900">กำลังค้นหาคนขับ</p>
       <p class="text-xs text-gray-500">เหลือเวลา <span id="countdown" class="font-bold">05:00</span></p>
       <div id="noDriver" class="hidden space-y-2">
-        <p class="text-xs text-red-600">ขออภัย ยังไม่มีคนขับว่างในขณะนี้</p>
+        <p class="text-sm font-bold text-red-600">ไม่พบคนขับในขณะนี้</p>
+        <p class="text-xs text-gray-600">ระบบค้นหาคนขับให้แล้ว 5 นาที แต่ยังไม่มีคนขับว่างรับงานตามประเภทรถที่เลือก</p>
+        <p class="text-xs text-gray-600">ลองเรียกใหม่อีกครั้ง หรือเลือกประเภทรถที่ใหญ่ขึ้นเพื่อเพิ่มโอกาสได้คนขับ</p>
         <button id="retryBtn" class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg">ลองเรียกรถใหม่</button>
       </div>
     </div>
@@ -248,7 +250,10 @@
       load().then(startTracking).catch(() => {});
     }
 
-    $('retryBtn').addEventListener('click', () => { location.href = 'customer_orders.html'; });
+    $('retryBtn').addEventListener('click', () => {
+      try { localStorage.setItem('rundrop_sender_phone', phone); } catch (e) {}
+      location.href = 'customer_orders.html';
+    });
   </script>
 </body>
 </html>
