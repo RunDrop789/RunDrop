@@ -20,8 +20,7 @@
         <p id="vehicle" class="text-[11px] text-gray-500"></p>
       </div>
       <label id="onlineWrap" class="hidden flex items-center gap-2 text-xs font-bold">
-        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">ออนไลน์
-      </label>
+        <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">พร้อมรับงาน
     </div>
 
     <p id="msg" class="text-xs text-center text-red-600 min-h-[1rem]"></p>
@@ -393,7 +392,7 @@
       const v = e.target.checked;
       try {
         await api('/api/driver?action=online', { method: 'POST', body: JSON.stringify({ isOnline: v }) });
-        say(v ? 'ออนไลน์แล้ว' : 'ออฟไลน์แล้ว');
+        say(v ? 'พร้อมรับงานแล้ว' : 'หยุดรับงานแล้ว');
         await loadAvailable();
       } catch (err) {
         e.target.checked = !v;
