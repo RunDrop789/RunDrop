@@ -8,6 +8,10 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    .swipe-thumb { transition: transform .2s ease; }
+    .swipe-track.dragging .swipe-thumb { transition: none; }
+  </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800">
   <div class="max-w-md mx-auto p-4 space-y-4 pb-10">
@@ -115,6 +119,7 @@
     const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
     const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
     const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
+    const SWIPE_THRESHOLD = 0.85;
 
     let idToken = null, activeOrder = null, history = [], gran = 'day', selectedKey = null;
     let map = null, mapLayer = null, mapOrderId = null, routeReqId = 0;
@@ -445,6 +450,61 @@
       renderStats();
     }));
 
+    // ---------- รับงานแบบสไลด์รูด ----------
+    function initSwipe(track) {
+      const thumb = track.querySelector('.swipe-thumb');
+      const maxX = () => Math.max(0, track.clientWidth - thumb.offsetWidth);
+      let startX = 0, dragging = false, x = 0;
+
+      const setX = v => {
+        x = Math.max(0, Math.min(v, maxX()));
+        thumb.style.transform = `translateX(${x}px)`;
+      };
+      const pointX = e => (e.touches ? e.touches[0].clientX : e.clientX);
+
+      const onStart = e => {
+        dragging = true;
+        track.classList.add('dragging');
+        startX = pointX(e) - x;
+      };
+      const onMove = e => {
+        if (!dragging) return;
+        if (e.cancelable) e.preventDefault();
+        setX(pointX(e) - startX);
+      };
+      const onEnd = async () => {
+        if (!dragging) return;
+        dragging = false;
+        track.classList.remove('dragging');
+        const max = maxX();
+        if (max > 0 && x / max >= SWIPE_THRESHOLD) {
+          setX(max);
+          try {
+            const { order } = await api('/api/driver?action=accept', {
+              method: 'POST', body: JSON.stringify({ orderId: Number(track.dataset.id) })
+            });
+            say(`รับงาน ${order.tracking_code} แล้ว`);
+          } catch (err) { say(err.message); }
+          await refresh();
+        } else {
+          setX(0);
+        }
+      };
+
+      thumb.addEventListener('mousedown', onStart);
+      thumb.addEventListener('touchstart', onStart, { passive: true });
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('mouseup', onEnd);
+      window.addEventListener('touchend', onEnd);
+    }
+
+    function bindSwipes() {
+      document.querySelectorAll('.swipe-track').forEach(t => {
+        if (!t.dataset.bound) { t.dataset.bound = '1'; initSwipe(t); }
+      });
+    }
+
     // ---------- งานที่รับได้ ----------
     async function loadAvailable() {
       if (activeOrder) {
@@ -466,21 +526,14 @@
             <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
             <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
             <p class="text-[11px] text-gray-500">ระยะ ${esc(o.distance_km)} กม.${o.customer_note ? ' · ' + esc(o.customer_note) : ''}</p>
-            <button data-id="${o.id}" class="accept w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg">รับงานนี้</button>
+            <div class="swipe-track relative h-10 mt-2 rounded-full bg-green-100 overflow-hidden select-none" data-id="${o.id}">
+              <span class="absolute inset-0 flex items-center justify-center text-xs font-bold text-green-800 pointer-events-none">ลากเพื่อรับงาน ➜</span>
+              <div class="swipe-thumb absolute left-0 top-0 h-10 w-10 rounded-full bg-green-600 text-white flex items-center justify-center font-bold cursor-grab touch-none">➜</div>
+            </div>
           </div>`).join('')
         : '<p class="text-xs text-gray-400 text-center py-4">ยังไม่มีงานใหม่</p>';
+      bindSwipes();
     }
-
-    $('orderList').addEventListener('click', async e => {
-      if (!e.target.classList.contains('accept')) return;
-      try {
-        const { order } = await api('/api/driver?action=accept', {
-          method: 'POST', body: JSON.stringify({ orderId: Number(e.target.dataset.id) })
-        });
-        say(`รับงาน ${order.tracking_code} แล้ว`);
-      } catch (err) { say(err.message); }
-      await refresh();
-    });
 
     // ---------- พร้อมรับงาน ----------
     $('onlineToggle').addEventListener('change', async e => {
