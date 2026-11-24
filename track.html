@@ -56,6 +56,7 @@
     const params = new URLSearchParams(location.search);
     const code = params.get('code') || '';
     const WAIT_MS = 5 * 60 * 1000;
+    const POLL_MS = 5000;
     const STATUS_TH = {
       NEW: 'กำลังค้นหาคนขับ',
       ACCEPTED: 'คนขับรับงานแล้ว กำลังไปรับสินค้า',
@@ -63,12 +64,42 @@
       DELIVERED: 'ส่งสินค้าเรียบร้อย',
       CANCELLED: 'ยกเลิก'
     };
+    const BASE_TITLE = 'RunDrop - ติดตามงาน';
     let phone = params.get('phone') || '';
-    let map = null, driverMarker = null, pollTimer = null, waitTimer = null;
+    let map = null, driverMarker = null, routeLayer = null, pollTimer = null, waitTimer = null;
+    let routeReqId = 0, lastMsgCount = -1, unreadCount = 0;
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     $('code').textContent = code;
+
+    // ---------- เสียงและ title แจ้งข้อความใหม่ ----------
+    let audioCtx = null;
+    function beep() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.frequency.value = 880;
+        g.gain.value = 0.08;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + 0.15);
+      } catch (e) {}
+      navigator.vibrate?.([200, 100, 200]);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { unreadCount = 0; document.title = BASE_TITLE; }
+    });
+
+    // ---------- เส้นทางตามถนน (OSRM) ----------
+    async function fetchRoadRoute(p, d) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${p[1]},${p[0]};${d[1]},${d[0]}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
+      const data = await res.json();
+      if (data.code !== 'Ok' || !data.routes?.length) throw new Error('OSRM no route');
+      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    }
 
     // ---------- โหลดข้อมูลงาน ----------
     async function load() {
@@ -94,15 +125,18 @@
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
+        routeLayer = L.layerGroup().addTo(map);
       }
-      const pts = [];
       const o = d.order;
+      const pts = [];
+      routeLayer.clearLayers();
+
       if (o.pickup.lat != null) {
-        L.circleMarker([o.pickup.lat, o.pickup.lng], { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(map);
+        L.circleMarker([o.pickup.lat, o.pickup.lng], { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(routeLayer);
         pts.push([o.pickup.lat, o.pickup.lng]);
       }
       if (o.dropoff.lat != null) {
-        L.circleMarker([o.dropoff.lat, o.dropoff.lng], { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(map);
+        L.circleMarker([o.dropoff.lat, o.dropoff.lng], { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(routeLayer);
         pts.push([o.dropoff.lat, o.dropoff.lng]);
       }
       if (d.driver?.lat != null) {
@@ -111,12 +145,38 @@
         pts.push([d.driver.lat, d.driver.lng]);
       }
       if (pts.length) map.fitBounds(pts, { padding: [30, 30] });
+      setTimeout(() => map.invalidateSize(), 100);
+
+      // วาดเส้นตามถนนระหว่างจุดรับและจุดส่ง (ถ้า OSRM ตอบกลับ)
+      if (o.pickup.lat != null && o.dropoff.lat != null) {
+        const p = [o.pickup.lat, o.pickup.lng];
+        const dd = [o.dropoff.lat, o.dropoff.lng];
+        const reqId = ++routeReqId;
+        fetchRoadRoute(p, dd).then(latlngs => {
+          if (reqId !== routeReqId) return;
+          L.polyline(latlngs, { color: '#16a34a', weight: 5, opacity: 0.8 }).addTo(routeLayer);
+        }).catch(() => {});
+      }
     }
 
     // ---------- แชท ----------
     async function loadChat() {
-      const res = await fetch(`/api/track?type=messages?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
+      const res = await fetch(`/api/track?type=messages&code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
       const { messages = [] } = await res.json();
+
+      // แจ้งเตือนเมื่อมีข้อความใหม่จากคนขับ
+      if (lastMsgCount >= 0 && messages.length > lastMsgCount) {
+        const fresh = messages.slice(lastMsgCount);
+        if (fresh.some(m => m.sender === 'driver')) {
+          if (document.hidden || !document.hasFocus()) {
+            unreadCount++;
+            document.title = `(${unreadCount}) ${BASE_TITLE}`;
+          }
+          beep();
+        }
+      }
+      lastMsgCount = messages.length;
+
       $('chatBox').innerHTML = messages.map(m => `
         <div class="flex ${m.sender === 'customer' ? 'justify-end' : 'justify-start'}">
           <span class="max-w-[75%] px-2 py-1 rounded-lg text-xs ${m.sender === 'customer' ? 'bg-green-600 text-white' : 'bg-white border'}">${esc(m.body)}</span>
@@ -139,7 +199,7 @@
     // ---------- เริ่มดูสถานะ (หลังยืนยันเบอร์) ----------
     function startTracking() {
       clearInterval(pollTimer);
-      pollTimer = setInterval(() => { load().catch(() => {}); loadChat().catch(() => {}); }, 10000);
+      pollTimer = setInterval(() => { load().catch(() => {}); loadChat().catch(() => {}); }, POLL_MS);
       loadChat();
     }
 
@@ -185,7 +245,6 @@
         }
       }, 3000);
     } else if (phone) {
-      // เปิดลิงก์ที่มีเบอร์อยู่แล้ว โหลดทันที
       load().then(startTracking).catch(() => {});
     }
 
