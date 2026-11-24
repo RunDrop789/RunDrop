@@ -21,6 +21,7 @@
       </div>
       <label id="onlineWrap" class="hidden flex items-center gap-2 text-xs font-bold">
         <input type="checkbox" id="onlineToggle" class="w-5 h-5 accent-green-600">พร้อมรับงาน
+      </label>
     </div>
 
     <p id="msg" class="text-xs text-center text-red-600 min-h-[1rem]"></p>
@@ -52,6 +53,17 @@
           🧭 นำทาง
         </a>
         <button id="advanceBtn" class="hidden w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg"></button>
+
+        <!-- กล้อง (ถ่ายสดเท่านั้น) -->
+        <div id="cameraBox" class="hidden space-y-2">
+          <p id="cameraTitle" class="text-xs font-bold text-green-900"></p>
+          <video id="camVideo" autoplay playsinline muted class="w-full rounded-xl bg-black h-56 object-cover"></video>
+          <canvas id="camCanvas" class="hidden"></canvas>
+          <div class="flex gap-2">
+            <button id="camShoot" class="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">📷 ถ่ายรูป</button>
+            <button id="camCancel" class="flex-1 bg-gray-200 text-xs font-bold py-2 rounded-lg">ยกเลิก</button>
+          </div>
+        </div>
 
         <div>
           <h3 class="text-xs font-bold mb-1">แชทกับลูกค้า</h3>
@@ -105,9 +117,10 @@
     const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
 
     let idToken = null, activeOrder = null, history = [], gran = 'day', selectedKey = null;
-    let map = null, mapLayer = null, mapOrderId = null;
+    let map = null, mapLayer = null, mapOrderId = null, routeReqId = 0;
     let chatOrderId = null, chatTimer = null, pollTimer = null;
     let pendingAction = null;
+    let camStream = null, camCallback = null;
 
     const $ = id => document.getElementById(id);
     const say = t => { $('msg').textContent = t || ''; };
@@ -168,6 +181,7 @@
         card.classList.add('hidden');
         stopChat();
         mapOrderId = null;
+        closeCamera();
         return;
       }
       const o = activeOrder;
@@ -210,15 +224,13 @@
       btn.classList.remove('hidden');
     }
 
-        let routeReqId = 0;
-
+    // ---------- เส้นทางตามถนน (OSRM) ----------
     async function fetchRoadRoute(p, d) {
       const url = `https://router.project-osrm.org/route/v1/driving/${p[1]},${p[0]};${d[1]},${d[0]}?overview=full&geometries=geojson`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
       const data = await res.json();
       if (data.code !== 'Ok' || !data.routes?.length) throw new Error('OSRM no route');
-      // GeoJSON ให้ [lng, lat] ต้องสลับเป็น [lat, lng] สำหรับ Leaflet
       return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
 
@@ -244,22 +256,82 @@
 
       const reqId = ++routeReqId;
       fetchRoadRoute(p, d).then(latlngs => {
-        if (reqId !== routeReqId) return; // งานเปลี่ยนไปแล้ว
+        if (reqId !== routeReqId) return;
         straight.remove();
         L.polyline(latlngs, { color: '#16a34a', weight: 5, opacity: 0.8 }).addTo(mapLayer);
         map.fitBounds(latlngs, { padding: [30, 30] });
       }).catch(() => {});
     }
 
-    // ---------- ยืนยันขั้นตอนงาน ----------
+    // ---------- ถ่ายรูปด้วยกล้องสดเท่านั้น ----------
+    async function openCamera(title, onCapture) {
+      camCallback = onCapture;
+      $('cameraTitle').textContent = title;
+      $('cameraBox').classList.remove('hidden');
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: 'environment' } }, audio: false
+        }).catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }));
+        $('camVideo').srcObject = camStream;
+      } catch (e) {
+        say('ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้อง');
+        closeCamera();
+      }
+    }
+
+    function closeCamera() {
+      if (camStream) camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+      $('camVideo').srcObject = null;
+      $('cameraBox').classList.add('hidden');
+      camCallback = null;
+    }
+
+    $('camCancel').addEventListener('click', closeCamera);
+
+    $('camShoot').addEventListener('click', () => {
+      const v = $('camVideo'), c = $('camCanvas');
+      if (!v.videoWidth) return;
+      const scale = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
+      c.width = Math.round(v.videoWidth * scale);
+      c.height = Math.round(v.videoHeight * scale);
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      c.toBlob(blob => {
+        const cb = camCallback;
+        closeCamera();
+        if (blob && cb) cb(blob);
+      }, 'image/jpeg', 0.8);
+    });
+
+    async function uploadOrderPhoto(orderId, photoType, blob) {
+      const data = await new Promise(resolve => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1]);
+        r.readAsDataURL(blob);
+      });
+      await api('/api/driver?action=photo', {
+        method: 'POST',
+        body: JSON.stringify({ orderId, photoType, mimeType: 'image/jpeg', data })
+      });
+    }
+
+    // ---------- ยืนยันขั้นตอนงาน (ต้องถ่ายรูปก่อน) ----------
     $('advanceBtn').addEventListener('click', () => {
       const n = NEXT[activeOrder?.status];
       if (!n) return;
-      pendingAction = { orderId: activeOrder.id, next: n.to };
-      $('confirmText').textContent = `ยืนยัน: ${n.label}?`;
-      $('confirmModal').classList.remove('hidden');
-      $('confirmModal').classList.add('flex');
+      const photoType = activeOrder.status === 'ACCEPTED' ? 'PICKUP' : 'DROPOFF';
+      const label = photoType === 'PICKUP' ? 'ถ่ายรูปตอนรับสินค้า' : 'ถ่ายรูปตอนส่งสินค้า';
+      openCamera(label, async blob => {
+        try {
+          await uploadOrderPhoto(activeOrder.id, photoType, blob);
+          pendingAction = { orderId: activeOrder.id, next: n.to };
+          $('confirmText').textContent = `ยืนยัน: ${n.label}?`;
+          $('confirmModal').classList.remove('hidden');
+          $('confirmModal').classList.add('flex');
+        } catch (e) { say(e.message); }
+      });
     });
+
     $('confirmNo').addEventListener('click', () => {
       $('confirmModal').classList.add('hidden');
       $('confirmModal').classList.remove('flex');
@@ -380,7 +452,7 @@
         return;
       }
       if (!$('onlineToggle').checked) {
-        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เปิดออนไลน์เพื่อรับงาน</p>';
+        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เปิดรับงานเพื่อดูงานที่รับได้</p>';
         return;
       }
       const { orders } = await api('/api/driver?action=available');
@@ -410,7 +482,7 @@
       await refresh();
     });
 
-    // ---------- ออนไลน์ ----------
+    // ---------- พร้อมรับงาน ----------
     $('onlineToggle').addEventListener('change', async e => {
       const v = e.target.checked;
       try {
