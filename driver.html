@@ -41,42 +41,17 @@
     <!-- ส่วนหลักเมื่อได้รับอนุมัติ -->
     <div id="dashboard" class="hidden space-y-4">
 
-      <!-- งานที่กำลังทำ -->
-      <div id="activeCard" class="hidden bg-white rounded-2xl shadow p-4 space-y-3">
-        <div class="flex justify-between text-xs">
-          <span id="aTrack" class="font-bold"></span>
-          <span id="aPrice" class="font-bold text-green-700"></span>
-        </div>
-        <p id="aStatus" class="text-xs font-bold text-green-800"></p>
-        <p class="text-xs">รับ: <span id="aPick"></span></p>
-        <p class="text-xs">ส่ง: <span id="aDrop"></span></p>
-        <p class="text-xs">ลูกค้า: <span id="aCust"></span> · <a id="aTel" class="text-green-700 font-bold">โทรหาลูกค้า</a></p>
-        <div id="jobMap" class="h-48 rounded-xl border"></div>
-        <a id="navBtn" target="_blank" rel="noopener"
-          class="hidden block w-full text-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg">
-          🧭 นำทาง
-        </a>
-        <button id="advanceBtn" class="hidden w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg"></button>
+      <!-- งานที่กำลังทำ (สูงสุด 2 งาน) -->
+      <div id="activeList" class="space-y-4"></div>
 
-        <!-- กล้อง (ถ่ายสดเท่านั้น) -->
-        <div id="cameraBox" class="hidden space-y-2">
-          <p id="cameraTitle" class="text-xs font-bold text-green-900"></p>
-          <video id="camVideo" autoplay playsinline muted class="w-full rounded-xl bg-black h-56 object-cover"></video>
-          <canvas id="camCanvas" class="hidden"></canvas>
-          <div class="flex gap-2">
-            <button id="camShoot" class="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">📷 ถ่ายรูป</button>
-            <button id="camCancel" class="flex-1 bg-gray-200 text-xs font-bold py-2 rounded-lg">ยกเลิก</button>
-          </div>
-        </div>
-
-        <div>
-          <h3 class="text-xs font-bold mb-1">แชทกับลูกค้า</h3>
-          <div id="chatBox" class="h-40 overflow-y-auto border rounded-lg p-2 space-y-1 bg-gray-50"></div>
-          <form id="chatForm" class="flex gap-2 mt-2">
-            <input id="chatInput" maxlength="300" placeholder="พิมพ์ข้อความ"
-              class="flex-1 border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
-            <button class="bg-green-600 text-white text-xs font-bold px-3 rounded-lg">ส่ง</button>
-          </form>
+      <!-- กล้อง (ถ่ายสดเท่านั้น) -->
+      <div id="cameraBox" class="hidden bg-white rounded-2xl shadow p-4 space-y-2">
+        <p id="cameraTitle" class="text-xs font-bold text-green-900"></p>
+        <video id="camVideo" autoplay playsinline muted class="w-full rounded-xl bg-black h-56 object-cover"></video>
+        <canvas id="camCanvas" class="hidden"></canvas>
+        <div class="flex gap-2">
+          <button id="camShoot" class="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">📷 ถ่ายรูป</button>
+          <button id="camCancel" class="flex-1 bg-gray-200 text-xs font-bold py-2 rounded-lg">ยกเลิก</button>
         </div>
       </div>
 
@@ -116,16 +91,19 @@
   <script>
     const LIFF_ID = '2012603605-C9Lh060m';
     const TZ = 'Asia/Bangkok';
+    const MAX_ACTIVE = 2;
     const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
     const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
     const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
     const SWIPE_THRESHOLD = 0.85;
 
-    let idToken = null, activeOrder = null, history = [], gran = 'day', selectedKey = null;
-    let map = null, mapLayer = null, mapOrderId = null, routeReqId = 0;
-    let chatOrderId = null, chatTimer = null, pollTimer = null;
-    let pendingAction = null;
-    let camStream = null, camCallback = null;
+    let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
+    let pendingAction = null, camStream = null, camCallback = null;
+    let pollTimer = null;
+    const maps = {};        // orderId -> { map, layer, reqId }
+    const chatTimers = {};  // orderId -> interval id
+    const seenOrderIds = new Set();
+    let audioCtx = null;
 
     const $ = id => document.getElementById(id);
     const say = t => { $('msg').textContent = t || ''; };
@@ -142,6 +120,29 @@
       if (!res.ok) throw new Error(body.error || 'เกิดข้อผิดพลาด');
       return body;
     }
+
+    // ---------- เสียงและการสั่นเมื่อมีงานใหม่ ----------
+    function beep() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+        o.frequency.value = 880; g.gain.value = 0.15;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(); o.stop(audioCtx.currentTime + 0.4);
+      } catch (e) {}
+      navigator.vibrate?.([300, 150, 300]);
+    }
+    function notifyNew(orders) {
+      const fresh = orders.filter(o => !seenOrderIds.has(o.id));
+      orders.forEach(o => seenOrderIds.add(o.id));
+      if (fresh.length) {
+        beep();
+        document.title = `(${fresh.length}) RunDrop - หน้าคนขับ`;
+      }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) document.title = 'RunDrop - หน้าคนขับ';
+    });
 
     // ---------- สถานะใบสมัคร / โปรไฟล์ ----------
     async function loadStatus() {
@@ -171,62 +172,69 @@
       return true;
     }
 
-    // ---------- งานปัจจุบัน ----------
+    // ---------- งานที่กำลังทำ ----------
     async function loadJobs() {
       const d = await api('/api/driver?action=jobs');
       history = d.history;
-      activeOrder = d.active;
+      activeOrders = d.active || [];
       renderActive();
       renderStats();
     }
 
-    function renderActive() {
-      const card = $('activeCard');
-      if (!activeOrder) {
-        card.classList.add('hidden');
-        stopChat();
-        mapOrderId = null;
-        closeCamera();
-        return;
-      }
-      const o = activeOrder;
-      card.classList.remove('hidden');
-      $('aTrack').textContent = o.tracking_code;
-      $('aPrice').textContent = o.price + ' ฿';
-      $('aStatus').textContent = STATUS_TH[o.status] || o.status;
-      $('aPick').textContent = o.pickup_place;
-      $('aDrop').textContent = o.destination;
-      $('aCust').textContent = o.customer_name;
-      $('aTel').href = 'tel:' + o.phone;
-
-      const n = NEXT[o.status];
-      const btn = $('advanceBtn');
-      btn.classList.toggle('hidden', !n);
-      if (n) btn.textContent = n.label;
-
-      updateNavBtn(o);
-
-      if (mapOrderId !== o.id) { drawMap(o); mapOrderId = o.id; }
-      startChat(o.id);
-    }
-
     function navTarget(o) {
-      // ยังไม่รับของ → ไปจุดรับ, รับของแล้ว → ไปจุดส่ง
       if (o.status === 'ACCEPTED') return { lat: o.pickup_lat, lng: o.pickup_lng };
       return { lat: o.dropoff_lat, lng: o.dropoff_lng };
     }
 
-    function updateNavBtn(o) {
-      const t = navTarget(o);
-      const btn = $('navBtn');
-      if (t.lat == null || t.lng == null) {
-        btn.classList.add('hidden');
+    function renderActive() {
+      const list = $('activeList');
+      const ids = new Set(activeOrders.map(o => o.id));
+      // ล้างแผนที่และตัวจับเวลาแชทของงานที่ไม่ได้ทำแล้ว
+      Object.keys(maps).forEach(id => { if (!ids.has(Number(id))) delete maps[id]; });
+      Object.keys(chatTimers).forEach(id => { if (!ids.has(Number(id))) { clearInterval(chatTimers[id]); delete chatTimers[id]; } });
+
+      if (!activeOrders.length) {
+        list.innerHTML = '';
+        closeCamera();
         return;
       }
-      const dest = `${Number(t.lat)},${Number(t.lng)}`;
-      btn.href = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
-      btn.textContent = o.status === 'ACCEPTED' ? '🧭 นำทางไปจุดรับ' : '🧭 นำทางไปจุดส่ง';
-      btn.classList.remove('hidden');
+
+      list.innerHTML = activeOrders.map(o => {
+        const n = NEXT[o.status];
+        const t = navTarget(o);
+        const hasNav = t.lat != null && t.lng != null;
+        const navUrl = hasNav
+          ? `https://www.google.com/maps/dir/?api=1&destination=${Number(t.lat)},${Number(t.lng)}&travelmode=driving`
+          : '';
+        const navText = o.status === 'ACCEPTED' ? '🧭 นำทางไปจุดรับ' : '🧭 นำทางไปจุดส่ง';
+        return `
+        <div class="bg-white rounded-2xl shadow p-4 space-y-3" data-order="${o.id}">
+          <div class="flex justify-between text-xs">
+            <span class="font-bold">${esc(o.tracking_code)}</span>
+            <span class="font-bold text-green-700">${esc(o.price)} ฿</span>
+          </div>
+          <p class="text-xs font-bold text-green-800">${esc(STATUS_TH[o.status] || o.status)}</p>
+          <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
+          <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
+          <p class="text-xs">ลูกค้า: ${esc(o.customer_name)} · <a href="tel:${esc(o.phone)}" class="text-green-700 font-bold">โทรหาลูกค้า</a></p>
+          <div id="map-${o.id}" class="h-48 rounded-xl border"></div>
+          ${hasNav ? `<a href="${navUrl}" target="_blank" rel="noopener" class="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg">${navText}</a>` : ''}
+          ${n ? `<button data-advance="${o.id}" class="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg">${n.label}</button>` : ''}
+          <div>
+            <h3 class="text-xs font-bold mb-1">แชทกับลูกค้า</h3>
+            <div id="chat-${o.id}" class="h-32 overflow-y-auto border rounded-lg p-2 space-y-1 bg-gray-50"></div>
+            <form data-chat="${o.id}" class="flex gap-2 mt-2">
+              <input maxlength="300" placeholder="พิมพ์ข้อความ" class="flex-1 border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
+              <button class="bg-green-600 text-white text-xs font-bold px-3 rounded-lg">ส่ง</button>
+            </form>
+          </div>
+        </div>`;
+      }).join('');
+
+      activeOrders.forEach(o => {
+        drawMap(o);
+        startChat(o.id);
+      });
     }
 
     // ---------- เส้นทางตามถนน (OSRM) ----------
@@ -240,31 +248,31 @@
     }
 
     function drawMap(o) {
-      if (!map) {
-        map = L.map('jobMap');
+      const el = document.getElementById('map-' + o.id);
+      if (!el || o.pickup_lat == null || o.dropoff_lat == null) return;
+      if (!maps[o.id]) {
+        const map = L.map(el);
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
-        mapLayer = L.layerGroup().addTo(map);
+        maps[o.id] = { map, layer: L.layerGroup().addTo(map), reqId: 0 };
       }
-      mapLayer.clearLayers();
-      if (o.pickup_lat == null || o.dropoff_lat == null) return;
+      const m = maps[o.id];
+      m.layer.clearLayers();
       const p = [Number(o.pickup_lat), Number(o.pickup_lng)];
       const d = [Number(o.dropoff_lat), Number(o.dropoff_lng)];
-      L.circleMarker(p, { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(mapLayer);
-      L.circleMarker(d, { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(mapLayer);
+      L.circleMarker(p, { radius: 8, color: '#16a34a', fillOpacity: 1 }).bindTooltip('จุดรับ').addTo(m.layer);
+      L.circleMarker(d, { radius: 8, color: '#dc2626', fillOpacity: 1 }).bindTooltip('จุดส่ง').addTo(m.layer);
+      const straight = L.polyline([p, d], { color: '#16a34a', dashArray: '6 6' }).addTo(m.layer);
+      m.map.fitBounds([p, d], { padding: [30, 30] });
+      setTimeout(() => m.map.invalidateSize(), 100);
 
-      // วาดเส้นตรงไว้ก่อน แล้วแทนด้วยเส้นตามถนนเมื่อดึงสำเร็จ
-      const straight = L.polyline([p, d], { color: '#16a34a', dashArray: '6 6' }).addTo(mapLayer);
-      map.fitBounds([p, d], { padding: [30, 30] });
-      setTimeout(() => map.invalidateSize(), 100);
-
-      const reqId = ++routeReqId;
+      const reqId = ++m.reqId;
       fetchRoadRoute(p, d).then(latlngs => {
-        if (reqId !== routeReqId) return;
+        if (!maps[o.id] || reqId !== maps[o.id].reqId) return;
         straight.remove();
-        L.polyline(latlngs, { color: '#16a34a', weight: 5, opacity: 0.8 }).addTo(mapLayer);
-        map.fitBounds(latlngs, { padding: [30, 30] });
+        L.polyline(latlngs, { color: '#16a34a', weight: 5, opacity: 0.8 }).addTo(m.layer);
+        m.map.fitBounds(latlngs, { padding: [30, 30] });
       }).catch(() => {});
     }
 
@@ -320,20 +328,24 @@
       });
     }
 
-    // ---------- ยืนยันขั้นตอนงาน (ต้องถ่ายรูปก่อน) ----------
-    $('advanceBtn').addEventListener('click', () => {
-      const n = NEXT[activeOrder?.status];
+    // ---------- ยืนยันขั้นตอนงาน (ถ่ายรูปก่อน) ----------
+    $('activeList').addEventListener('click', e => {
+      const btn = e.target.closest('[data-advance]');
+      if (!btn) return;
+      const orderId = Number(btn.dataset.advance);
+      const o = activeOrders.find(x => x.id === orderId);
+      const n = o && NEXT[o.status];
       if (!n) return;
-      const photoType = activeOrder.status === 'ACCEPTED' ? 'PICKUP' : 'DROPOFF';
+      const photoType = o.status === 'ACCEPTED' ? 'PICKUP' : 'DROPOFF';
       const label = photoType === 'PICKUP' ? 'ถ่ายรูปตอนรับสินค้า' : 'ถ่ายรูปตอนส่งสินค้า';
       openCamera(label, async blob => {
         try {
-          await uploadOrderPhoto(activeOrder.id, photoType, blob);
-          pendingAction = { orderId: activeOrder.id, next: n.to };
+          await uploadOrderPhoto(orderId, photoType, blob);
+          pendingAction = { orderId, next: n.to };
           $('confirmText').textContent = `ยืนยัน: ${n.label}?`;
           $('confirmModal').classList.remove('hidden');
           $('confirmModal').classList.add('flex');
-        } catch (e) { say(e.message); }
+        } catch (err) { say(err.message); }
       });
     });
 
@@ -350,37 +362,37 @@
       } catch (e) { say(e.message); }
     });
 
-    // ---------- แชท ----------
+    // ---------- แชท (หลายงานพร้อมกัน) ----------
     function startChat(orderId) {
-      if (chatOrderId === orderId) return;
-      stopChat();
-      chatOrderId = orderId;
-      loadChat();
-      chatTimer = setInterval(loadChat, 5000);
+      if (chatTimers[orderId]) return;
+      loadChat(orderId);
+      chatTimers[orderId] = setInterval(() => loadChat(orderId), 5000);
     }
-    function stopChat() {
-      clearInterval(chatTimer);
-      chatTimer = null;
-      chatOrderId = null;
-    }
-    async function loadChat() {
-      if (!chatOrderId) return;
-      const { messages } = await api('/api/driver?action=messages&orderId=' + chatOrderId);
-      $('chatBox').innerHTML = messages.length
+
+    async function loadChat(orderId) {
+      const box = document.getElementById('chat-' + orderId);
+      if (!box) return;
+      const { messages } = await api('/api/driver?action=messages&orderId=' + orderId);
+      box.innerHTML = messages.length
         ? messages.map(m => `<div class="flex ${m.sender === 'driver' ? 'justify-end' : 'justify-start'}">
             <span class="max-w-[75%] px-2 py-1 rounded-lg text-xs ${m.sender === 'driver' ? 'bg-green-600 text-white' : 'bg-white border'}">${esc(m.body)}</span>
           </div>`).join('')
         : '<p class="text-[11px] text-gray-400 text-center">ยังไม่มีข้อความ</p>';
-      $('chatBox').scrollTop = $('chatBox').scrollHeight;
+      box.scrollTop = box.scrollHeight;
     }
-    $('chatForm').addEventListener('submit', async e => {
+
+    $('activeList').addEventListener('submit', async e => {
+      const form = e.target.closest('[data-chat]');
+      if (!form) return;
       e.preventDefault();
-      const body = $('chatInput').value.trim();
-      if (!body || !chatOrderId) return;
+      const orderId = Number(form.dataset.chat);
+      const input = form.querySelector('input');
+      const body = input.value.trim();
+      if (!body) return;
       try {
-        await api('/api/driver?action=messages', { method: 'POST', body: JSON.stringify({ orderId: chatOrderId, body }) });
-        $('chatInput').value = '';
-        loadChat();
+        await api('/api/driver?action=messages', { method: 'POST', body: JSON.stringify({ orderId, body }) });
+        input.value = '';
+        loadChat(orderId);
       } catch (err) { say(err.message); }
     });
 
@@ -392,7 +404,7 @@
       return d.toISOString().slice(0, 10);
     }
     function weekStart(k) {
-      const wd = (new Date(k + 'T00:00:00Z').getUTCDay() + 6) % 7; // จันทร์ = 0
+      const wd = (new Date(k + 'T00:00:00Z').getUTCDay() + 6) % 7;
       return shiftDay(k, -wd);
     }
     function keyOf(ms) {
@@ -507,15 +519,16 @@
 
     // ---------- งานที่รับได้ ----------
     async function loadAvailable() {
-      if (activeOrder) {
-        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-2">มีงานที่กำลังทำอยู่ ทำให้เสร็จก่อนรับงานใหม่</p>';
+      if (activeOrders.length >= MAX_ACTIVE) {
+        $('orderList').innerHTML = `<p class="text-xs text-gray-400 text-center py-2">รับได้สูงสุด ${MAX_ACTIVE} งานพร้อมกัน ทำให้เสร็จก่อนรับงานใหม่</p>`;
         return;
       }
       if (!$('onlineToggle').checked) {
-        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เปิดรับงานเพื่อดูงานที่รับได้</p>';
+        $('orderList').innerHTML = '<p class="text-xs text-gray-400 text-center py-4">เปิดพร้อมรับงานเพื่อดูงานที่รับได้</p>';
         return;
       }
       const { orders } = await api('/api/driver?action=available');
+      notifyNew(orders);
       $('orderList').innerHTML = orders.length
         ? orders.map(o => `
           <div class="bg-white rounded-xl shadow p-3 space-y-1">
@@ -525,7 +538,8 @@
             </div>
             <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
             <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
-            <p class="text-[11px] text-gray-500">ระยะ ${esc(o.distance_km)} กม.${o.customer_note ? ' · ' + esc(o.customer_note) : ''}</p>
+            <p class="text-[11px] text-gray-600 font-bold">${o.to_pickup_km != null ? `ห่างคุณ ${esc(o.to_pickup_km)} กม. · ` : ''}รับไปส่ง ${esc(o.distance_km)} กม.</p>
+            ${o.customer_note ? `<p class="text-[11px] text-gray-500">หมายเหตุ: ${esc(o.customer_note)}</p>` : ''}
             <div class="swipe-track relative h-10 mt-2 rounded-full bg-green-100 overflow-hidden select-none" data-id="${o.id}">
               <span class="absolute inset-0 flex items-center justify-center text-xs font-bold text-green-800 pointer-events-none">ลากเพื่อรับงาน ➜</span>
               <div class="swipe-thumb absolute left-0 top-0 h-10 w-10 rounded-full bg-green-600 text-white flex items-center justify-center font-bold cursor-grab touch-none">➜</div>
