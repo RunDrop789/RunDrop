@@ -20,14 +20,14 @@
 <body class="bg-gray-50 font-sans text-gray-800">
 
   <!-- Header -->
-<div class="w-full bg-white border-b border-gray-200">
-  <div class="max-w-2xl mx-auto px-4 pt-4 pb-3 text-center">
-    <img src="banner.jpg" alt="RunDrop Banner"
-      class="block mx-auto w-full max-w-sm md:max-w-md h-auto rounded-2xl shadow-md">
-    <h1 class="text-xl md:text-2xl font-black text-green-900 mt-3 leading-tight">RunDrop บริการเรียกรถ รับ-ส่งพัสดุ</h1>
-    <p class="text-[11px] md:text-xs font-bold text-green-800 leading-tight">แพลตฟอร์มไทย 100% ค่าธรรมเนียมเพียง 10% วิ่งได้ 24 ชม. 🚀</p>
+  <div class="w-full bg-white border-b border-gray-200">
+    <div class="max-w-2xl mx-auto px-4 pt-4 pb-3 text-center">
+      <img src="banner.jpg" alt="RunDrop Banner"
+        class="block mx-auto w-full max-w-sm md:max-w-md h-auto rounded-2xl shadow-md">
+      <h1 class="text-xl md:text-2xl font-black text-green-900 mt-3 leading-tight">RunDrop บริการเรียกรถ รับ-ส่งพัสดุ</h1>
+      <p class="text-[11px] md:text-xs font-bold text-green-800 leading-tight">แพลตฟอร์มไทย 100% ค่าธรรมเนียมเพียง 10% วิ่งได้ 24 ชม. 🚀</p>
+    </div>
   </div>
-</div>
 
   <!-- Main Booking Form -->
   <main class="max-w-md mx-auto p-4 pb-12">
@@ -55,10 +55,10 @@
         <!-- จุดรับสินค้า -->
         <div class="relative">
           <div class="flex items-center gap-1.5">
-           <span class="inline-flex w-4 h-4 rounded-full bg-green-600 ring-2 ring-green-200 items-center justify-center">
-           <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
-           </span>
-           <label class="text-xs font-bold">จุดรับสินค้า (Pickup Location) *</label>
+            <span class="inline-flex w-4 h-4 rounded-full bg-green-600 ring-2 ring-green-200 items-center justify-center">
+              <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+            </span>
+            <label class="text-xs font-bold">จุดรับสินค้า (Pickup Location) *</label>
             <button type="button" onclick="openMapModal('pickup')"
               class="text-[11px] bg-yellow-100 text-green-800 font-bold px-2 py-0.5 rounded hover:bg-yellow-200 transition">
               🗺️ เลือกจากแผนที่ / GPS
@@ -72,9 +72,9 @@
         <div class="relative">
           <div class="flex items-center gap-1.5">
             <svg class="w-4 h-4 text-red-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+              <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
             </svg>
-           <label class="text-xs font-bold">จุดส่งสินค้า (Dropoff Location) *</label>
+            <label class="text-xs font-bold">จุดส่งสินค้า (Dropoff Location) *</label>
             <button type="button" onclick="openMapModal('dropoff')"
               class="text-[11px] bg-yellow-100 text-green-800 font-bold px-2 py-0.5 rounded hover:bg-yellow-200 transition">
               🗺️ เลือกจากแผนที่ / GPS
@@ -122,6 +122,13 @@
       </form>
     </div>
 
+    <div class="text-center mt-3">
+      <a id="historyLink" href="track.html"
+        class="inline-block w-full bg-yellow-400 hover:bg-yellow-500 text-green-900 font-bold text-xs py-2 rounded-xl shadow transition">
+        📋 ประวัติการเรียกรถ / ติดตามงาน
+      </a>
+    </div>
+
     <div class="text-center mt-4">
       <p class="text-xs text-gray-500">คุณต้องการขับรถกับเรา?</p>
       <a href="driver-register.html" class="inline-block mt-0.5 text-xs font-bold text-green-700 hover:underline">
@@ -140,7 +147,6 @@
 
       <p class="text-xs text-gray-600">ค้นหาสถานที่ หรือแตะบนแผนที่เพื่อปักหมุด ลากหมุดเพื่อปรับตำแหน่งได้</p>
 
-      <!-- ช่องค้นหาสถานที่ -->
       <div class="relative">
         <input type="text" id="mapSearchInput" placeholder="ค้นหาสถานที่ เช่น Future Park"
           class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
@@ -251,36 +257,38 @@
       calculateEstimate();
     }
 
-    // ---------- คำนวณราคา ----------
-function calculateEstimate() {
-  const selectedType = document.getElementById('selectedVehicleType').value;
-  const km = parseFloat(document.getElementById('estimatedKm').value) || 0;
-  const display = document.getElementById('priceDisplay');
-  const found = vehicleRatesData.find(r => r.vehicle_type === selectedType);
+    // ---------- Surcharge ตามช่วงเวลา ----------
+    const PEAK_SURCHARGE_RATE = 0.15;
+    const PEAK_RANGES = [
+      { start: 7 * 60,  end: 9 * 60 },
+      { start: 17 * 60, end: 20 * 60 }
+    ];
 
-  if (found && km > 0) {
-    const base = Number(found.base_fare) || 0;
-    const pricePerKm = Number(found.price_per_km) || 0;
-    const minimumPrice = Number(found.minimum_price) || 0;
-    let total = base + km * pricePerKm;
-    if (total < minimumPrice) total = minimumPrice;
-    display.textContent = Math.round(total) + ' ฿';
-  } else {
-    display.textContent = '0 ฿';
-  }
-}
-// ---------- Surcharge ตามช่วงเวลา ----------
-const PEAK_SURCHARGE_RATE = 0.15; // 15% (ปรับได้ระหว่าง 0.10 – 0.20)
-const PEAK_RANGES = [
-  { start: 7 * 60,  end: 9 * 60 },   // 07:00 – 09:00
-  { start: 17 * 60, end: 20 * 60 }   // 17:00 – 20:00
-];
+    function getSurchargeRate(date = new Date()) {
+      const minutes = date.getHours() * 60 + date.getMinutes();
+      const isPeak = PEAK_RANGES.some(r => minutes >= r.start && minutes < r.end);
+      return isPeak ? PEAK_SURCHARGE_RATE : 0;
+    }
 
-function getSurchargeRate(date = new Date()) {
-  const minutes = date.getHours() * 60 + date.getMinutes();
-  const isPeak = PEAK_RANGES.some(r => minutes >= r.start && minutes < r.end);
-  return isPeak ? PEAK_SURCHARGE_RATE : 0;
-}
+    // ---------- คำนวณราคา (แสดงผลเท่านั้น; server คำนวณจริง) ----------
+    function calculateEstimate() {
+      const selectedType = document.getElementById('selectedVehicleType').value;
+      const km = parseFloat(document.getElementById('estimatedKm').value) || 0;
+      const display = document.getElementById('priceDisplay');
+      const found = vehicleRatesData.find(r => r.vehicle_type === selectedType);
+
+      if (found && km > 0) {
+        const base = Number(found.base_fare) || 0;
+        const pricePerKm = Number(found.price_per_km) || 0;
+        const minimumPrice = Number(found.minimum_price) || 0;
+        let subtotal = base + km * pricePerKm;
+        if (subtotal < minimumPrice) subtotal = minimumPrice;
+        const total = Math.round(subtotal * (1 + getSurchargeRate()));
+        display.textContent = total + ' ฿';
+      } else {
+        display.textContent = '0 ฿';
+      }
+    }
 
     // ---------- ระยะทางตามถนน (OSRM) ----------
     let routeRequestId = 0;
@@ -296,7 +304,6 @@ function getSurchargeRate(date = new Date()) {
     }
 
     async function fetchRouteKm(from, to) {
-      // OSRM ใช้ลำดับ lng,lat
       const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
       const res = await fetch(url);
       if (!res.ok) throw new Error('OSRM HTTP ' + res.status);
@@ -304,7 +311,7 @@ function getSurchargeRate(date = new Date()) {
       if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
         throw new Error('OSRM no route: ' + data.code);
       }
-      return data.routes[0].distance / 1000; // เมตร -> กิโลเมตร
+      return data.routes[0].distance / 1000;
     }
 
     function setDistanceNote(text) {
@@ -333,7 +340,6 @@ function getSurchargeRate(date = new Date()) {
         kmInput.value = (Math.round(km * 10) / 10).toFixed(1);
         setDistanceNote('ระยะทางตามถนน คำนวณอัตโนมัติ');
       } catch (err) {
-        console.error('OSRM error:', err);
         if (reqId !== routeRequestId) return;
         const straight = haversineKm(coords.pickup, coords.dropoff);
         const km = Math.max(1, Math.round(straight * 1.3 * 10) / 10);
@@ -348,7 +354,7 @@ function getSurchargeRate(date = new Date()) {
     let pickerMap = null;
     let pickerMarker = null;
     let pickedLatLng = null;
-    const DEFAULT_CENTER = [13.7563, 100.5018]; // กรุงเทพฯ
+    const DEFAULT_CENTER = [13.7563, 100.5018];
 
     function openMapModal(targetField) {
       activeTargetField = targetField;
@@ -563,7 +569,7 @@ function getSurchargeRate(date = new Date()) {
       });
     }
 
-    // ---------- บันทึกการเรียกรถลง orders ----------
+    // ---------- บันทึกการเรียกรถผ่าน API ฝั่ง server ----------
     async function submitBooking(e) {
       e.preventDefault();
 
@@ -575,11 +581,10 @@ function getSurchargeRate(date = new Date()) {
 
       const name = document.getElementById('senderName').value.trim();
       const phone = document.getElementById('senderPhone').value.trim();
-      const pickup = document.getElementById('pickupLocation').value.trim();
-      const dropoff = document.getElementById('dropoffLocation').value.trim();
+      const pickupText = document.getElementById('pickupLocation').value.trim();
+      const dropoffText = document.getElementById('dropoffLocation').value.trim();
       const remark = document.getElementById('remark').value.trim();
       const km = parseFloat(document.getElementById('estimatedKm').value) || 0;
-      const price = parseInt(document.getElementById('priceDisplay').textContent, 10) || 0;
 
       if (!name || !phone) {
         alert('กรุณากรอกชื่อและเบอร์โทรศัพท์');
@@ -589,8 +594,8 @@ function getSurchargeRate(date = new Date()) {
         alert('กรุณาเลือกจุดรับและจุดส่งจากแผนที่หรือจากรายการค้นหา เพื่อให้ระบบคำนวณระยะทางและราคา');
         return;
       }
-      if (!km || km <= 0 || price <= 0) {
-        alert('ไม่สามารถคำนวณราคาได้ กรุณาลองเลือกจุดใหม่');
+      if (!km || km <= 0) {
+        alert('ไม่สามารถคำนวณระยะทางได้ กรุณาลองเลือกจุดใหม่');
         return;
       }
 
@@ -599,47 +604,32 @@ function getSurchargeRate(date = new Date()) {
       btn.textContent = 'กำลังส่งข้อมูล...';
 
       try {
-        const { error } = await _supabase.from('orders').insert([{
-          customer_name: name,
-          phone: phone,
-          vehicle_type: selectedType,
-          pickup_place: pickup,
-          destination: dropoff,
-          distance_km: km,
-          price: price,
-          status: 'NEW',
-          tracking_code: generateTrackingCode(),
-          customer_note: remark,
-          pickup_lat: coords.pickup.lat,
-          pickup_lng: coords.pickup.lng,
-          dropoff_lat: coords.dropoff.lat,
-          dropoff_lng: coords.dropoff.lng
-        }]);
-
-        if (error) throw error;
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, phone, vehicleType: selectedType,
+            pickupText, dropoffText,
+            pickup: coords.pickup,
+            dropoff: coords.dropoff,
+            remark
+          })
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'บันทึกไม่สำเร็จ');
 
         localStorage.setItem('rundrop_sender_name', name);
         localStorage.setItem('rundrop_sender_phone', phone);
 
-        alert('บันทึกการเรียกรถเรียบร้อย! ระบบกำลังค้นหาคนขับ...');
-        resetForm();
+        // เด้งไปหน้ารอ (นับเวลาและรอคนขับรับงาน)
+        location.href = `track.html?code=${encodeURIComponent(body.trackingCode)}&wait=1&phone=${encodeURIComponent(phone)}`;
       } catch (err) {
-        console.error('submitBooking error:', err.message, err.code || '');
-        alert('ไม่สามารถบันทึกการเรียกรถได้ กรุณาลองใหม่อีกครั้ง');
+        console.error('submitBooking error:', err.message);
+        alert(err.message || 'ไม่สามารถบันทึกการเรียกรถได้ กรุณาลองใหม่อีกครั้ง');
       } finally {
         btn.disabled = false;
         btn.textContent = 'ยืนยันการเรียกรถ';
       }
-    }
-
-    // ---------- รหัสติดตามงาน ----------
-    function generateTrackingCode() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let code = 'RD-';
-      for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return code;
     }
 
     function resetForm() {
@@ -672,6 +662,11 @@ function getSurchargeRate(date = new Date()) {
         badge.classList.add('hidden');
       } else {
         badge.classList.remove('hidden');
+      }
+
+      const historyLink = document.getElementById('historyLink');
+      if (savedPhone) {
+        historyLink.href = 'track.html?phone=' + encodeURIComponent(savedPhone);
       }
     });
   </script>
