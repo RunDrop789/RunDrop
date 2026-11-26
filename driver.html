@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     .swipe-thumb { transition: transform .2s ease; }
     .swipe-track.dragging .swipe-thumb { transition: none; }
@@ -90,6 +91,8 @@
 
   <script>
     const LIFF_ID = '2012603605-C9Lh060m';
+    const SUPABASE_URL = 'https://ddekswonarcgackfgfxc.supabase.co';
+    const SUPABASE_ANON_KEY = 'ใส่ anon/publishable key ของโปรเจกต์';
     const TZ = 'Asia/Bangkok';
     const MAX_ACTIVE = 2;
     const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
@@ -99,7 +102,7 @@
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
     let pendingAction = null, camStream = null, camCallback = null;
-    let pollTimer = null;
+    let pollTimer = null, rt = null;
     const maps = {};        // orderId -> { map, layer, reqId }
     const chatTimers = {};  // orderId -> interval id
     const seenOrderIds = new Set();
@@ -143,6 +146,21 @@
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) document.title = 'RunDrop - หน้าคนขับ';
     });
+
+    // ---------- Realtime: ใช้เป็นสัญญาณเท่านั้น ข้อมูลจริงมาจาก API ----------
+    function startRealtime() {
+      if (rt) return;
+      try {
+        rt = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+          .channel('orders-signal')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+            loadAvailable().catch(() => {});
+          })
+          .subscribe();
+      } catch (e) {
+        rt = null;
+      }
+    }
 
     // ---------- สถานะใบสมัคร / โปรไฟล์ ----------
     async function loadStatus() {
@@ -189,7 +207,6 @@
     function renderActive() {
       const list = $('activeList');
       const ids = new Set(activeOrders.map(o => o.id));
-      // ล้างแผนที่และตัวจับเวลาแชทของงานที่ไม่ได้ทำแล้ว
       Object.keys(maps).forEach(id => { if (!ids.has(Number(id))) delete maps[id]; });
       Object.keys(chatTimers).forEach(id => { if (!ids.has(Number(id))) { clearInterval(chatTimers[id]); delete chatTimers[id]; } });
 
@@ -588,8 +605,9 @@
         if (!approved) return;
         $('dashboard').classList.remove('hidden');
         startGps();
+        startRealtime();
         await refresh();
-        pollTimer = setInterval(refresh, 10000);
+        pollTimer = setInterval(refresh, 30000);
       } catch (err) {
         say(err.message || 'ไม่สามารถเชื่อมต่อ LINE ได้');
       }
