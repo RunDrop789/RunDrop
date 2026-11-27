@@ -3,7 +3,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SECRET_KEY,
-  { auth: { persistSession: false } }
+  {
+    auth: {
+      persistSession: false
+    }
+  }
 );
 
 const PEAK_RATE = 0.15;
@@ -20,7 +24,10 @@ function thaiMinutes() {
 
 function surchargeRate() {
   const m = thaiMinutes();
-  return PEAK_RANGES.some(r => m >= r.start && m < r.end)
+
+  return PEAK_RANGES.some(
+    r => m >= r.start && m < r.end
+  )
     ? PEAK_RATE
     : 0;
 }
@@ -76,13 +83,9 @@ function genCode() {
 function normalizeVehicleType(vehicleType) {
   const map = {
     motorcycle: 'Motorcycle',
-
     sedan: 'Sedan',
-
     hatchback: 'Hatchback',
-
     suv: 'SUV',
-
     pickup: 'Pickup',
 
     boxpickup: 'Box Pickup',
@@ -107,9 +110,9 @@ function normalizeVehicleType(vehicleType) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res
-      .status(405)
-      .json({ error: 'method not allowed' });
+    return res.status(405).json({
+      error: 'method not allowed'
+    });
   }
 
   try {
@@ -129,9 +132,7 @@ export default async function handler(req, res) {
     const vehicleType =
       normalizeVehicleType(rawVehicleType);
 
-    const remark = String(
-      b.remark || ''
-    )
+    const remark = String(b.remark || '')
       .trim()
       .slice(0, 300);
 
@@ -145,16 +146,6 @@ export default async function handler(req, res) {
 
     const pickup = b.pickup;
     const dropoff = b.dropoff;
-
-    console.log(
-      'vehicleType received:',
-      rawVehicleType
-    );
-
-    console.log(
-      'vehicleType normalized:',
-      vehicleType
-    );
 
     if (
       !name ||
@@ -178,6 +169,9 @@ export default async function handler(req, res) {
       });
     }
 
+    console.log('RAW VEHICLE:', rawVehicleType);
+    console.log('NORMALIZED VEHICLE:', vehicleType);
+
     const {
       data: rate,
       error: rateErr
@@ -186,46 +180,32 @@ export default async function handler(req, res) {
       .select('*')
       .eq('vehicle_type', vehicleType)
       .eq('active', true)
-      .maybeSingle();
+      .single();
 
     if (rateErr) {
-      console.error(
-        'vehicle rate error:',
-        rateErr
-      );
+      console.error('RATE ERROR', rateErr);
 
       return res.status(500).json({
-        error: 'โหลดข้อมูลเรทรถไม่สำเร็จ'
-      });
-    }
-
-    if (!rate) {
-      return res.status(400).json({
-        error: 'ประเภทรถไม่ถูกต้อง',
-        received: rawVehicleType,
-        normalized: vehicleType
+        error: 'โหลดข้อมูล rate รถไม่สำเร็จ',
+        code: rateErr.code,
+        message: rateErr.message,
+        details: rateErr.details,
+        hint: rateErr.hint,
+        rawVehicleType,
+        vehicleType
       });
     }
 
     let km;
 
     try {
-      km = await routeKm(
-        pickup,
-        dropoff
-      );
+      km = await routeKm(pickup, dropoff);
     } catch (err) {
-      console.error(
-        'OSRM fallback:',
-        err
-      );
+      console.error(err);
 
       km = Math.max(
         1,
-        haversineKm(
-          pickup,
-          dropoff
-        ) * 1.3
+        haversineKm(pickup, dropoff) * 1.3
       );
     }
 
@@ -233,81 +213,50 @@ export default async function handler(req, res) {
 
     let subtotal =
       Number(rate.base_fare || 0) +
-      km *
-        Number(
-          rate.price_per_km || 0
-        );
+      km * Number(rate.price_per_km || 0);
 
     if (
       subtotal <
       Number(rate.minimum_price || 0)
     ) {
-      subtotal = Number(
-        rate.minimum_price || 0
-      );
+      subtotal = Number(rate.minimum_price);
     }
 
     const price = Math.round(
-      subtotal *
-        (1 + surchargeRate())
+      subtotal * (1 + surchargeRate())
     );
 
-    const trackingCode =
-      genCode();
+    const trackingCode = genCode();
 
-    const { error } =
-      await supabase
-        .from('orders')
-        .insert([
-          {
-            customer_name: name,
-            phone,
-            vehicle_type:
-              vehicleType,
-            pickup_place:
-              pickupText ||
-              `พิกัด: ${pickup.lat.toFixed(
-                6
-              )}, ${pickup.lng.toFixed(
-                6
-              )}`,
-
-            destination:
-              dropoffText ||
-              `พิกัด: ${dropoff.lat.toFixed(
-                6
-              )}, ${dropoff.lng.toFixed(
-                6
-              )}`,
-
-            distance_km: km,
-            price,
-            status: 'NEW',
-            tracking_code:
-              trackingCode,
-            customer_note:
-              remark,
-
-            pickup_lat:
-              pickup.lat,
-            pickup_lng:
-              pickup.lng,
-
-            dropoff_lat:
-              dropoff.lat,
-            dropoff_lng:
-              dropoff.lng
-          }
-        ]);
+    const { error } = await supabase
+      .from('orders')
+      .insert([
+        {
+          customer_name: name,
+          phone,
+          vehicle_type: vehicleType,
+          pickup_place:
+            pickupText ||
+            `พิกัด: ${pickup.lat.toFixed(6)}, ${pickup.lng.toFixed(6)}`,
+          destination:
+            dropoffText ||
+            `พิกัด: ${dropoff.lat.toFixed(6)}, ${dropoff.lng.toFixed(6)}`,
+          distance_km: km,
+          price,
+          status: 'NEW',
+          tracking_code: trackingCode,
+          customer_note: remark,
+          pickup_lat: pickup.lat,
+          pickup_lng: pickup.lng,
+          dropoff_lat: dropoff.lat,
+          dropoff_lng: dropoff.lng
+        }
+      ]);
 
     if (error) {
-      console.error(
-        'orders insert error:',
-        error
-      );
-
       return res.status(500).json({
-        error: 'บันทึกไม่สำเร็จ'
+        error: 'บันทึกไม่สำเร็จ',
+        detail: error.message
       });
     }
 
@@ -322,7 +271,7 @@ export default async function handler(req, res) {
     console.error(err);
 
     return res.status(500).json({
-      error: 'server error',
+      error: 'SERVER_ERROR',
       detail: err.message
     });
   }
