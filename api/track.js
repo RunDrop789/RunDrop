@@ -7,7 +7,6 @@ function normPhone(v) {
   return String(v || '').replace(/\s/g, '');
 }
 
-// ---------- รายการงานตามเบอร์ (ไม่แสดงชื่อ/พิกัด/เบอร์คนขับ) ----------
 async function handleList(req, res, src) {
   const phone = normPhone(src.phone);
   if (!PHONE_RE.test(phone)) return res.status(400).json({ error: 'เบอร์ไม่ถูกต้อง' });
@@ -35,7 +34,6 @@ async function handleList(req, res, src) {
   });
 }
 
-// ---------- สถานะงานเดียว (ต้องมีรหัสและเบอร์ตรงกัน) ----------
 async function handleStatus(req, res, src) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
 
@@ -86,7 +84,6 @@ async function handleStatus(req, res, src) {
   });
 }
 
-// ---------- แชทลูกค้า (ต้องมีรหัสและเบอร์ตรงกัน) ----------
 async function handleMessages(req, res, src) {
   const code = String(src.code || '').trim();
   const phone = normPhone(src.phone);
@@ -95,4 +92,39 @@ async function handleMessages(req, res, src) {
   const { data: o, error: findErr } = await supabase
     .from('orders').select('id, phone').eq('tracking_code', code).maybeSingle();
   if (findErr) return res.status(500).json({ error: 'db error' });
-  if (!o || o.phone !== phone) return res.status(404).json({ error: 'ไม่พบงาน'
+  if (!o || o.phone !== phone) return res.status(404).json({ error: 'ไม่พบงาน' });
+
+  if (req.method === 'GET') {
+    const { data, error } = await supabase
+      .from('order_messages')
+      .select('id, sender, body, created_at')
+      .eq('order_id', o.id)
+      .order('id', { ascending: true })
+      .limit(200);
+    if (error) return res.status(500).json({ error: 'db error' });
+    return res.json({ messages: data || [] });
+  }
+
+  const body = String(src.body || '').trim().slice(0, 300);
+  if (!body) return res.status(400).json({ error: 'ข้อความว่าง' });
+  const { error } = await supabase
+    .from('order_messages')
+    .insert([{ order_id: o.id, sender: 'customer', body }]);
+  if (error) return res.status(500).json({ error: 'db error' });
+  return res.json({ ok: true });
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'method not allowed' });
+  }
+  const src = req.method === 'GET' ? req.query : (req.body || {});
+  const type = src.type || 'status';
+
+  if (type === 'list') {
+    if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
+    return handleList(req, res, src);
+  }
+  if (type === 'messages') return handleMessages(req, res, src);
+  return handleStatus(req, res, src);
+}
