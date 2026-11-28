@@ -107,6 +107,17 @@
             class="w-full border border-gray-300 rounded-lg p-2 text-xs focus:outline-none focus:border-green-600">
         </div>
 
+        <div class="space-y-2">
+          <label for="customerPhotoInput" class="block text-xs font-bold">รูปสินค้าที่จะส่ง (ไม่บังคับ)</label>
+          <input id="customerPhotoInput" type="file" accept="image/*" capture="environment"
+            class="w-full text-xs text-gray-600 file:mr-2 file:rounded-lg file:border-0 file:bg-green-100 file:px-3 file:py-2 file:text-xs file:font-bold file:text-green-800">
+          <div id="customerPhotoPreviewWrap" class="hidden flex items-start gap-2">
+            <img id="customerPhotoPreview" alt="ตัวอย่างรูปสินค้า" class="h-20 w-20 rounded-lg border object-cover">
+            <button type="button" id="removeCustomerPhoto" class="text-xs font-bold text-red-600">เอารูปออก</button>
+          </div>
+          <p class="text-[10px] text-gray-500">ถ่ายรูปหรือเลือกรูปสินค้าเพื่อให้คนขับดูได้</p>
+        </div>
+
         <!-- เลือกประเภทรถ -->
         <div>
           <label class="block text-xs font-bold mb-1.5">เลือกประเภทรถบริการ *</label>
@@ -199,11 +210,56 @@
     let vehicleRatesData = [];
     let activeTargetField = '';
     let lineIdToken = null;
+    let customerPhotoData = null;
     const bookingDraftKey = 'rundrop_booking_draft';
     const bookingTokenRetryKey = 'rundrop_booking_token_retry';
 
     // พิกัดที่ลูกค้าเลือก (จากแผนที่ หรือ autocomplete)
     const coords = { pickup: null, dropoff: null };
+
+    function showCustomerPhoto(data) {
+      customerPhotoData = data || null;
+      const wrap = document.getElementById('customerPhotoPreviewWrap');
+      wrap.classList.toggle('hidden', !customerPhotoData);
+      document.getElementById('customerPhotoPreview').src = customerPhotoData
+        ? `data:image/jpeg;base64,${customerPhotoData}`
+        : '';
+    }
+
+    async function compressCustomerPhoto(file) {
+      if (!file.type.startsWith('image/')) throw new Error('กรุณาเลือกไฟล์รูปภาพ');
+      if (file.size > 20 * 1024 * 1024) throw new Error('ไฟล์รูปต้นฉบับใหญ่เกินไป');
+
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const image = await new Promise((resolve, reject) => {
+          const element = new Image();
+          element.onload = () => resolve(element);
+          element.onerror = () => reject(new Error('เปิดรูปภาพไม่สำเร็จ'));
+          element.src = objectUrl;
+        });
+        const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('เตรียมรูปภาพไม่สำเร็จ');
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+        if (!blob) throw new Error('บีบอัดรูปภาพไม่สำเร็จ');
+        if (blob.size > 2 * 1024 * 1024) throw new Error('รูปภาพใหญ่เกิน 2 MB');
+
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+          reader.onerror = () => reject(new Error('อ่านรูปภาพไม่สำเร็จ'));
+          reader.readAsDataURL(blob);
+        });
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
 
     const vehicleMeta = {
       'Motorcycle':   { icon: '🛵', name: 'มอเตอร์ไซค์' },
@@ -624,6 +680,9 @@
       const pickupText = document.getElementById('pickupLocation').value.trim();
       const dropoffText = document.getElementById('dropoffLocation').value.trim();
       const remark = document.getElementById('remark').value.trim();
+      const customerPhoto = customerPhotoData
+        ? { mimeType: 'image/jpeg', data: customerPhotoData }
+        : null;
       const km = parseFloat(document.getElementById('estimatedKm').value) || 0;
 
       if (!name || !phone) {
@@ -658,14 +717,16 @@
             pickupText, dropoffText,
             pickup: coords.pickup,
             dropoff: coords.dropoff,
-            remark
+            remark,
+            customerPhoto
           })
         });
         const body = await res.json().catch(() => ({}));
         if (res.status === 401 && /token/i.test(body.error || '')) {
           sessionStorage.setItem(bookingDraftKey, JSON.stringify({
             name, phone, pickupText, dropoffText, remark,
-            pickup: coords.pickup, dropoff: coords.dropoff, vehicleType: selectedType
+            pickup: coords.pickup, dropoff: coords.dropoff, vehicleType: selectedType,
+            customerPhoto: customerPhotoData
           }));
           if (RunDropLineSession.reauthenticateOnce(bookingTokenRetryKey)) return;
         }
@@ -691,6 +752,8 @@
       document.getElementById('pickupLocation').value = '';
       document.getElementById('dropoffLocation').value = '';
       document.getElementById('remark').value = '';
+      document.getElementById('customerPhotoInput').value = '';
+      showCustomerPhoto(null);
       document.getElementById('selectedVehicleType').value = '';
       document.getElementById('priceDisplay').textContent = '0 ฿';
       coords.pickup = null;
@@ -706,6 +769,21 @@
       setupPlaceSearch('dropoff');
       setupMapSearch();
       document.getElementById('bookingForm').addEventListener('submit', submitBooking);
+      document.getElementById('customerPhotoInput').addEventListener('change', async event => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          showCustomerPhoto(await compressCustomerPhoto(file));
+        } catch (error) {
+          event.target.value = '';
+          showCustomerPhoto(null);
+          alert(error.message || 'เตรียมรูปภาพไม่สำเร็จ');
+        }
+      });
+      document.getElementById('removeCustomerPhoto').addEventListener('click', () => {
+        document.getElementById('customerPhotoInput').value = '';
+        showCustomerPhoto(null);
+      });
 
       const savedName = localStorage.getItem('rundrop_sender_name');
       const savedPhone = localStorage.getItem('rundrop_sender_phone');
@@ -729,6 +807,7 @@
           document.getElementById('pickupLocation').value = bookingDraft.pickupText || '';
           document.getElementById('dropoffLocation').value = bookingDraft.dropoffText || '';
           document.getElementById('remark').value = bookingDraft.remark || '';
+          showCustomerPhoto(bookingDraft.customerPhoto || null);
           coords.pickup = bookingDraft.pickup || null;
           coords.dropoff = bookingDraft.dropoff || null;
           updateDistanceFromCoords();

@@ -23,6 +23,11 @@
 
     .swipe-thumb { transition: transform .2s ease; }
     .swipe-track.dragging .swipe-thumb { transition: none; }
+    #cameraBox,
+    #confirmModal,
+    #driverCancelModal {
+      z-index: 10000;
+    }
   </style>
 </head>
 <body class="bg-gray-50 font-sans text-gray-800">
@@ -124,8 +129,10 @@
     const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
     const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
     const SWIPE_THRESHOLD = 0.85;
+    const linkedOrderId = Number(new URLSearchParams(location.search).get('orderId')) || null;
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
+    let linkedOrderFocused = false;
     let renderedActiveSignature = null, refreshInProgress = false, refreshQueued = false;
     let pendingAction = null, pendingCancelOrderId = null, camStream = null, camCallback = null;
     let pollTimer = null, rt = null, rtClient = null, realtimeTimer = null, realtimeRetryTimer = null;
@@ -803,7 +810,7 @@
       notifyNew(orders);
       $('orderList').innerHTML = orders.length
         ? orders.map(o => `
-          <div class="bg-white rounded-xl shadow p-3 space-y-1">
+          <div data-job-card="${o.id}" class="bg-white rounded-xl shadow p-3 space-y-1">
             <div class="flex justify-between text-xs">
               <span class="font-bold">${esc(o.tracking_code)}</span>
               <span class="font-bold text-green-700">${esc(o.price)} ฿</span>
@@ -823,6 +830,15 @@
         resolveLocationLabel(o, 'dropoff', o.destination, o.dropoff_lat, o.dropoff_lng);
       });
       bindSwipes();
+      if (linkedOrderId && !linkedOrderFocused) {
+        const linkedCard = document.querySelector(`[data-job-card="${linkedOrderId}"]`);
+        if (linkedCard) {
+          linkedOrderFocused = true;
+          linkedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          linkedCard.classList.add('ring-2', 'ring-green-500');
+          setTimeout(() => linkedCard.classList.remove('ring-2', 'ring-green-500'), 5000);
+        }
+      }
     }
 
     // ---------- พร้อมรับงาน ----------

@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { verifyLineToken } from '../lib/lineVerify.js';
+import { notifyNewJob } from '../lib/lineJobNotifications.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -12,6 +13,7 @@ const supabase = createClient(
 );
 
 const PEAK_RATE = 0.15;
+const MAX_CUSTOMER_PHOTO_BYTES = 2 * 1024 * 1024;
 
 const PEAK_RANGES = [
   { start: 7 * 60, end: 9 * 60 },
@@ -237,8 +239,40 @@ export default async function handler(req, res) {
     );
 
     const trackingCode = genCode();
+    let customerPhotoPath = null;
 
-    const { error } = await supabase
+    if (b.customerPhoto != null) {
+      const photoData = b.customerPhoto?.data;
+      if (
+        b.customerPhoto?.mimeType !== 'image/jpeg' ||
+        typeof photoData !== 'string' ||
+        !/^[A-Za-z0-9+/]+={0,2}$/.test(photoData)
+      ) {
+        return res.status(400).json({ error: 'รูปสินค้าไม่ถูกต้อง' });
+      }
+
+      const photoBuffer = Buffer.from(photoData, 'base64');
+      if (
+        !photoBuffer.length ||
+        photoBuffer.length > MAX_CUSTOMER_PHOTO_BYTES ||
+        photoBuffer[0] !== 0xff ||
+        photoBuffer[1] !== 0xd8 ||
+        photoBuffer[2] !== 0xff
+      ) {
+        return res.status(400).json({ error: 'รูปสินค้าต้องเป็น JPEG ขนาดไม่เกิน 2 MB' });
+      }
+
+      customerPhotoPath = `customer/${trackingCode}-${Date.now()}.jpg`;
+      const { error: photoError } = await supabase.storage
+        .from('order-photos')
+        .upload(customerPhotoPath, photoBuffer, { contentType: 'image/jpeg', upsert: false });
+      if (photoError) {
+        console.error('customer photo upload error:', photoError.message);
+        return res.status(500).json({ error: 'อัปโหลดรูปสินค้าไม่สำเร็จ' });
+      }
+    }
+
+    const { data: createdOrder, error } = await supabase
       .from('orders')
       .insert([
         {
@@ -260,15 +294,38 @@ export default async function handler(req, res) {
           pickup_lat: pickup.lat,
           pickup_lng: pickup.lng,
           dropoff_lat: dropoff.lat,
-          dropoff_lng: dropoff.lng
+          dropoff_lng: dropoff.lng,
+          ...(customerPhotoPath ? { customer_photo_path: customerPhotoPath } : {})
         }
-      ]);
+      ])
+      .select('id, created_at')
+      .single();
 
     if (error) {
+      if (customerPhotoPath) {
+        const { error: removeError } = await supabase.storage
+          .from('order-photos')
+          .remove([customerPhotoPath]);
+        if (removeError) console.error('customer photo cleanup error:', removeError.message);
+      }
       return res.status(500).json({
         error: 'บันทึกไม่สำเร็จ',
         detail: error.message
       });
+    }
+
+    try {
+      const notification = await notifyNewJob({
+        id: createdOrder.id,
+        pickupText: pickupText || `พิกัด: ${pickup.lat.toFixed(6)}, ${pickup.lng.toFixed(6)}`,
+        dropoffText: dropoffText || `พิกัด: ${dropoff.lat.toFixed(6)}, ${dropoff.lng.toFixed(6)}`,
+        vehicleType,
+        price,
+        customerPhotoPath
+      });
+      if (notification.sent) console.info(`LINE new-job alert sent to ${notification.sent} drivers`);
+    } catch (notificationError) {
+      console.error('LINE new-job notification failed:', notificationError.message);
     }
 
     return res.status(200).json({
