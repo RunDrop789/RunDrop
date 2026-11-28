@@ -92,8 +92,6 @@
 
   <script>
     const LIFF_ID = window.LIFF_ID_DRIVER;
-    const SUPABASE_URL = window.SUPABASE_URL;
-    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
     const TZ = 'Asia/Bangkok';
     const MAX_ACTIVE = 2;
     const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
@@ -177,7 +175,7 @@
     function startRealtime() {
       if (rt) return;
       try {
-        rt = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+        rt = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
           .channel('orders-signal')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
             scheduleRealtimeRefresh();
