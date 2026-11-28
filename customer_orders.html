@@ -10,8 +10,15 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="config.js"></script>
+  <script src="location-name.js"></script>
   <style>
     @media (max-width: 767px) {
+      input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+      textarea,
+      select {
+        font-size: 16px !important;
+      }
+
       #pickupLocation,
       #dropoffLocation {
         font-size: 16px;
@@ -451,25 +458,37 @@
       );
     }
 
-    function confirmLocation() {
+    async function confirmLocation() {
       if (!pickedLatLng) {
         alert('กรุณาแตะบนแผนที่หรือกดปุ่ม GPS ก่อน');
         return;
       }
 
       const { lat, lng } = pickedLatLng;
-      const text = `พิกัด: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      const preview = document.getElementById('mapPreviewText');
+      preview.textContent = 'กำลังค้นหาชื่อสถานที่...';
 
-      if (activeTargetField === 'pickup') {
-        coords.pickup = { lat, lng };
-        document.getElementById('pickupLocation').value = text;
-      } else if (activeTargetField === 'dropoff') {
-        coords.dropoff = { lat, lng };
-        document.getElementById('dropoffLocation').value = text;
+      try {
+        const text = await window.RunDropLocation.reverseGeocode(lat, lng);
+        if (!pickedLatLng || pickedLatLng.lat !== lat || pickedLatLng.lng !== lng) {
+          preview.textContent = 'ตำแหน่งเปลี่ยนแล้ว กรุณายืนยันอีกครั้ง';
+          return;
+        }
+
+        if (activeTargetField === 'pickup') {
+          coords.pickup = { lat, lng };
+          document.getElementById('pickupLocation').value = text;
+        } else if (activeTargetField === 'dropoff') {
+          coords.dropoff = { lat, lng };
+          document.getElementById('dropoffLocation').value = text;
+        }
+
+        closeMapModal();
+        updateDistanceFromCoords();
+      } catch (error) {
+        console.error('reverse geocoding failed:', error);
+        preview.textContent = 'ค้นหาชื่อสถานที่ไม่สำเร็จ กรุณาลองใหม่';
       }
-
-      closeMapModal();
-      updateDistanceFromCoords();
     }
 
     // ---------- ค้นหาสถานที่ในกล่องแผนที่ (Nominatim) ----------

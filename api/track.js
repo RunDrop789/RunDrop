@@ -53,7 +53,7 @@ async function handleAccount(req, res) {
     return res.status(500).json({ error: 'โหลดประวัติไม่สำเร็จ' });
   }
 
-  const orders = (data || []).map(o => ({
+  const allOrders = (data || []).map(o => ({
     trackingCode: o.tracking_code,
     status: o.status,
     price: o.price,
@@ -62,10 +62,12 @@ async function handleAccount(req, res) {
     createdAt: o.created_at
   }));
   const activeStatuses = new Set(['NEW', 'ACCEPTED', 'PICKED_UP']);
+  const currentOrders = allOrders.filter(o => activeStatuses.has(o.status));
+  const historyOrders = allOrders.filter(o => !activeStatuses.has(o.status));
 
   return res.json({
-    currentOrders: orders.filter(o => activeStatuses.has(o.status)),
-    orders
+    currentOrders,
+    orders: historyOrders
   });
 }
 

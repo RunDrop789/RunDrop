@@ -10,7 +10,16 @@
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
+  <script src="location-name.js"></script>
   <style>
+    @media (max-width: 767px) {
+      input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+      textarea,
+      select {
+        font-size: 16px !important;
+      }
+    }
+
     .swipe-thumb { transition: transform .2s ease; }
     .swipe-track.dragging .swipe-thumb { transition: none; }
   </style>
@@ -100,6 +109,7 @@
     const SWIPE_THRESHOLD = 0.85;
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
+    let renderedActiveSignature = null, refreshInProgress = false;
     let pendingAction = null, camStream = null, camCallback = null;
     let pollTimer = null, rt = null, realtimeTimer = null;
     const maps = {};        // orderId -> { map, layer, reqId }
@@ -233,11 +243,54 @@
       return { lat: o.dropoff_lat, lng: o.dropoff_lng };
     }
 
+    function needsLocationLookup(place) {
+      const text = String(place || '').trim();
+      return !text || /^(?:พิกัด\s*:\s*)?-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?$/i.test(text);
+    }
+
+    function locationLabel(place) {
+      return needsLocationLookup(place) ? 'กำลังค้นหาที่อยู่...' : esc(place);
+    }
+
+    function resolveLocationLabel(order, kind, place, lat, lng) {
+      if (!needsLocationLookup(place)) return;
+      const target = document.querySelector(
+        `[data-location-order="${order.id}"][data-location-kind="${kind}"]`
+      );
+      if (!target) return;
+      if (!window.RunDropLocation?.reverseGeocode) {
+        console.error('location lookup is unavailable');
+        target.textContent = 'ไม่สามารถค้นหาชื่อสถานที่ได้';
+        return;
+      }
+
+      window.RunDropLocation.reverseGeocode(lat, lng).then(label => {
+        if (target.isConnected) target.textContent = label;
+      }).catch(error => {
+        console.error('reverse geocoding failed:', error);
+        if (target.isConnected) target.textContent = 'ไม่พบชื่อสถานที่';
+      });
+    }
+
     function renderActive() {
       const list = $('activeList');
       const ids = new Set(activeOrders.map(o => o.id));
-      Object.keys(maps).forEach(id => { if (!ids.has(Number(id))) delete maps[id]; });
+      Object.keys(maps).forEach(id => {
+        if (!ids.has(Number(id))) {
+          maps[id].map.remove();
+          delete maps[id];
+        }
+      });
       Object.keys(chatTimers).forEach(id => { if (!ids.has(Number(id))) { clearInterval(chatTimers[id]); delete chatTimers[id]; } });
+
+      const signature = JSON.stringify(activeOrders);
+      if (signature === renderedActiveSignature) return;
+      renderedActiveSignature = signature;
+
+      Object.keys(maps).forEach(id => {
+        maps[id].map.remove();
+        delete maps[id];
+      });
 
       if (!activeOrders.length) {
         list.innerHTML = '';
@@ -260,8 +313,8 @@
             <span class="font-bold text-green-700">${esc(o.price)} ฿</span>
           </div>
           <p class="text-xs font-bold text-green-800">${esc(STATUS_TH[o.status] || o.status)}</p>
-          <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
-          <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
+          <p class="text-xs">รับ: <span data-location-order="${o.id}" data-location-kind="pickup">${locationLabel(o.pickup_place)}</span></p>
+          <p class="text-xs">ส่ง: <span data-location-order="${o.id}" data-location-kind="dropoff">${locationLabel(o.destination)}</span></p>
           <p class="text-xs">ลูกค้า: ${esc(o.customer_name)} · <a href="tel:${esc(o.phone)}" class="text-green-700 font-bold">โทรหาลูกค้า</a></p>
           <div id="map-${o.id}" class="h-48 rounded-xl border"></div>
           ${hasNav ? `<a href="${navUrl}" target="_blank" rel="noopener" class="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg">${navText}</a>` : ''}
@@ -280,6 +333,8 @@
       activeOrders.forEach(o => {
         drawMap(o);
         startChat(o.id);
+        resolveLocationLabel(o, 'pickup', o.pickup_place, o.pickup_lat, o.pickup_lng);
+        resolveLocationLabel(o, 'dropoff', o.destination, o.dropoff_lat, o.dropoff_lng);
       });
     }
 
@@ -315,7 +370,7 @@
 
       const reqId = ++m.reqId;
       fetchRoadRoute(p, d).then(latlngs => {
-        if (!maps[o.id] || reqId !== maps[o.id].reqId) return;
+        if (maps[o.id] !== m || reqId !== m.reqId) return;
         straight.remove();
         L.polyline(latlngs, { color: '#16a34a', weight: 5, opacity: 0.8 }).addTo(m.layer);
         m.map.fitBounds(latlngs, { padding: [30, 30] });
@@ -582,8 +637,8 @@
               <span class="font-bold">${esc(o.tracking_code)}</span>
               <span class="font-bold text-green-700">${esc(o.price)} ฿</span>
             </div>
-            <p class="text-xs">รับ: ${esc(o.pickup_place)}</p>
-            <p class="text-xs">ส่ง: ${esc(o.destination)}</p>
+            <p class="text-xs">รับ: <span data-location-order="${o.id}" data-location-kind="pickup">${locationLabel(o.pickup_place)}</span></p>
+            <p class="text-xs">ส่ง: <span data-location-order="${o.id}" data-location-kind="dropoff">${locationLabel(o.destination)}</span></p>
             <p class="text-[11px] text-gray-600 font-bold">${o.to_pickup_km != null ? `ห่างคุณ ${esc(o.to_pickup_km)} กม. · ` : ''}รับไปส่ง ${esc(o.distance_km)} กม.</p>
             ${o.customer_note ? `<p class="text-[11px] text-gray-500">หมายเหตุ: ${esc(o.customer_note)}</p>` : ''}
             <div class="swipe-track relative h-10 mt-2 rounded-full bg-green-100 overflow-hidden select-none" data-id="${o.id}">
@@ -592,6 +647,10 @@
             </div>
           </div>`).join('')
         : '<p class="text-xs text-gray-400 text-center py-4">ยังไม่มีงานใหม่</p>';
+      orders.forEach(o => {
+        resolveLocationLabel(o, 'pickup', o.pickup_place, o.pickup_lat, o.pickup_lng);
+        resolveLocationLabel(o, 'dropoff', o.destination, o.dropoff_lat, o.dropoff_lng);
+      });
       bindSwipes();
     }
 
@@ -649,21 +708,27 @@
 
     // ---------- เริ่มต้น ----------
     async function refresh() {
-      if (activeOrders.length >= MAX_ACTIVE) {
-        await loadJobs();
+      if (refreshInProgress) return;
+      refreshInProgress = true;
+      try {
         if (activeOrders.length >= MAX_ACTIVE) {
-          $('orderList').innerHTML = `<p class="text-xs text-gray-400 text-center py-2">รับได้สูงสุด ${MAX_ACTIVE} งานพร้อมกัน ทำให้เสร็จก่อนรับงานใหม่</p>`;
+          await loadJobs();
+          if (activeOrders.length >= MAX_ACTIVE) {
+            $('orderList').innerHTML = `<p class="text-xs text-gray-400 text-center py-2">รับได้สูงสุด ${MAX_ACTIVE} งานพร้อมกัน ทำให้เสร็จก่อนรับงานใหม่</p>`;
+            return;
+          }
+          await loadAvailable();
           return;
         }
-        await loadAvailable();
-        return;
-      }
 
-      const results = await Promise.allSettled([loadJobs(), loadAvailable()]);
-      const failed = results.find(result => result.status === 'rejected');
-      if (failed) throw failed.reason;
-      if (activeOrders.length >= MAX_ACTIVE) {
-        $('orderList').innerHTML = `<p class="text-xs text-gray-400 text-center py-2">รับได้สูงสุด ${MAX_ACTIVE} งานพร้อมกัน ทำให้เสร็จก่อนรับงานใหม่</p>`;
+        const results = await Promise.allSettled([loadJobs(), loadAvailable()]);
+        const failed = results.find(result => result.status === 'rejected');
+        if (failed) throw failed.reason;
+        if (activeOrders.length >= MAX_ACTIVE) {
+          $('orderList').innerHTML = `<p class="text-xs text-gray-400 text-center py-2">รับได้สูงสุด ${MAX_ACTIVE} งานพร้อมกัน ทำให้เสร็จก่อนรับงานใหม่</p>`;
+        }
+      } finally {
+        refreshInProgress = false;
       }
     }
 
@@ -685,7 +750,7 @@
         $('dashboard').classList.remove('hidden');
         startRealtime();
         refresh().catch(e => say(e.message)).finally(startGps);
-        pollTimer = setInterval(() => refresh().catch(() => {}), 10000);
+        pollTimer = setInterval(() => refresh().catch(() => {}), 5000);
       } catch (err) {
         say(err.message || 'ไม่สามารถเชื่อมต่อ LINE ได้');
       }
