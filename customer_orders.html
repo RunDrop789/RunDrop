@@ -637,6 +637,8 @@
       }
 
       const btn = document.getElementById('bookBtn');
+      const currentToken = liff.getIDToken();
+      if (currentToken) lineIdToken = currentToken;
       if (!lineIdToken) {
         alert('กรุณาเข้าสู่ระบบ LINE ก่อนเรียกรถ');
         return;
