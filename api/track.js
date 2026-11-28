@@ -88,7 +88,7 @@ async function handleStatus(req, res, src) {
 
   const { data: o, error } = await supabase
     .from('orders')
-    .select('id, tracking_code, status, price, phone, line_user_id, pickup_place, destination, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, driver_id')
+    .select('id, tracking_code, status, price, phone, line_user_id, pickup_place, destination, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, driver_id, created_at')
     .eq('tracking_code', code)
     .maybeSingle();
   if (error) {
@@ -122,6 +122,7 @@ async function handleStatus(req, res, src) {
       trackingCode: o.tracking_code,
       status: o.status,
       price: o.price,
+      createdAt: o.created_at,
       pickup: { place: o.pickup_place, lat: o.pickup_lat, lng: o.pickup_lng },
       dropoff: { place: o.destination, lat: o.dropoff_lat, lng: o.dropoff_lng }
     },

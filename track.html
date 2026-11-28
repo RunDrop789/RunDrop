@@ -41,11 +41,11 @@
 
     <!-- โหมดรอคนขับ -->
     <div id="waiting" class="hidden bg-white rounded-2xl shadow p-4 space-y-2 text-center">
-      <p class="text-sm font-bold text-green-900">กำลังค้นหาคนขับ</p>
-      <p class="text-xs text-gray-500">เหลือเวลา <span id="countdown" class="font-bold">05:00</span></p>
+      <p class="text-sm font-bold text-red-600">กำลังเรียกรถ</p>
+      <p class="text-xs text-gray-500">เหลือเวลา <span id="countdown" class="font-bold">15:00</span></p>
       <div id="noDriver" class="hidden space-y-2">
         <p class="text-sm font-bold text-red-600">ไม่พบคนขับในขณะนี้</p>
-        <p class="text-xs text-gray-600">ระบบค้นหาคนขับให้แล้ว 5 นาที แต่ยังไม่มีคนขับว่างรับงานตามประเภทรถที่เลือก</p>
+        <p class="text-xs text-gray-600">ระบบค้นหาคนขับให้แล้ว 15 นาที แต่ยังไม่มีคนขับว่างรับงานตามประเภทรถที่เลือก</p>
         <p class="text-xs text-gray-600">ลองเรียกใหม่อีกครั้ง หรือเลือกประเภทรถที่ใหญ่ขึ้นเพื่อเพิ่มโอกาสได้คนขับ</p>
         <button id="retryBtn" class="w-full bg-green-600 text-white text-xs font-bold py-2 rounded-lg">ลองเรียกรถใหม่</button>
       </div>
@@ -55,7 +55,7 @@
     <div id="orderSummary" class="bg-white rounded-2xl shadow p-4 space-y-2">
       <p class="text-xs text-gray-500">รหัสติดตาม</p>
       <p id="code" class="font-bold text-green-900"></p>
-      <p id="status" class="text-sm font-bold text-green-800"></p>
+      <p id="status" class="text-sm font-bold text-red-600"></p>
       <p id="driver" class="text-xs text-gray-600"></p>
       <p id="gpsTime" class="text-[11px] text-gray-400"></p>
     </div>
@@ -85,10 +85,10 @@
   <script>
     const params = new URLSearchParams(location.search);
     const code = params.get('code') || '';
-    const WAIT_MS = 5 * 60 * 1000;
+    const WAIT_MS = 15 * 60 * 1000;
     const POLL_MS = 5000;
     const STATUS_TH = {
-      NEW: 'กำลังค้นหาคนขับ',
+      NEW: 'กำลังเรียกรถ',
       ACCEPTED: 'คนขับรับงานแล้ว กำลังไปรับสินค้า',
       PICKED_UP: 'รับสินค้าแล้ว กำลังไปส่ง',
       DELIVERED: 'ส่งสินค้าเรียบร้อย',
@@ -199,6 +199,8 @@
       $('verify').classList.add('hidden');
       $('panel').classList.remove('hidden');
       $('status').textContent = STATUS_TH[d.order.status] || d.order.status;
+      $('status').classList.toggle('text-red-600', d.order.status === 'NEW');
+      $('status').classList.toggle('text-green-800', d.order.status !== 'NEW');
       $('driver').textContent = d.driver
         ? `คนขับ: ${d.driver.name} · ${d.driver.vehicle} · ${d.driver.plate}`
         : 'ยังไม่มีคนขับรับงาน';
@@ -341,16 +343,29 @@
       if (params.get('wait') === '1') {
         $('waiting').classList.remove('hidden');
         $('verify').classList.add('hidden');
-        const startedAt = Date.now();
+        let deadline = Date.now() + WAIT_MS;
+        let waitCheckInProgress = false;
 
         waitTimer = setInterval(async () => {
-          const left = WAIT_MS - (Date.now() - startedAt);
-          const s = Math.max(0, Math.ceil(left / 1000));
-          $('countdown').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+          if (waitCheckInProgress) return;
+          waitCheckInProgress = true;
 
           try {
-            const res = await fetch(`/api/track?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`);
+            const res = await fetch(
+              `/api/track?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`,
+              { cache: 'no-store' }
+            );
             const d = await res.json();
+            if (res.ok) {
+              const createdAt = Date.parse(d.order.createdAt);
+              if (Number.isFinite(createdAt)) deadline = createdAt + WAIT_MS;
+            }
+            if (res.ok && d.order.status === 'CANCELLED') {
+              clearInterval(waitTimer);
+              $('countdown').textContent = '00:00';
+              $('noDriver').classList.remove('hidden');
+              return;
+            }
             if (res.ok && d.order.status !== 'NEW') {
               clearInterval(waitTimer);
               $('waiting').classList.add('hidden');
@@ -360,15 +375,33 @@
             }
           } catch (e) {}
 
+          const left = deadline - Date.now();
+          const s = Math.max(0, Math.ceil(left / 1000));
+          $('countdown').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+
           if (left <= 0) {
             clearInterval(waitTimer);
-            await fetch('/api/order-cancel', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ code, phone })
-            }).catch(() => {});
-            $('countdown').textContent = '00:00';
-            $('noDriver').classList.remove('hidden');
+            try {
+              const res = await fetch('/api/order-cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, phone })
+              });
+              const result = await res.json().catch(() => ({}));
+              if (!res.ok) throw new Error(result.error || 'ยกเลิกงานที่หมดเวลาไม่สำเร็จ');
+              if (result.status === 'CANCELLED') {
+                $('countdown').textContent = '00:00';
+                $('noDriver').classList.remove('hidden');
+              } else {
+                $('waiting').classList.add('hidden');
+                await load();
+                startTracking();
+              }
+            } catch (err) {
+              $('msg').textContent = err.message || 'หมดเวลาค้นหาคนขับ แต่ยืนยันสถานะงานไม่สำเร็จ กรุณาลองเปิดหน้านี้ใหม่';
+            }
           }
+          waitCheckInProgress = false;
         }, 3000);
       } else {
         load().then(startTracking).catch(err => { $('msg').textContent = err.message; });

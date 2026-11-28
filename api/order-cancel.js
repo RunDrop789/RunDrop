@@ -11,9 +11,15 @@ export default async function handler(req, res) {
   if (!o || o.phone !== phone) return res.status(404).json({ error: 'ไม่พบงาน' });
   if (o.status !== 'NEW' || o.driver_id !== null) return res.json({ ok: true, status: o.status });
 
-  const { error } = await supabase
+  const { data: cancelled, error } = await supabase
     .from('orders').update({ status: 'CANCELLED' })
-    .eq('id', o.id).eq('status', 'NEW').is('driver_id', null);
+    .eq('id', o.id).eq('status', 'NEW').is('driver_id', null)
+    .select('status').maybeSingle();
   if (error) return res.status(500).json({ error: 'db error' });
-  return res.json({ ok: true, status: 'CANCELLED' });
+  if (cancelled?.status === 'CANCELLED') return res.json({ ok: true, status: 'CANCELLED' });
+
+  const { data: latest, error: latestError } = await supabase
+    .from('orders').select('status').eq('id', o.id).maybeSingle();
+  if (latestError) return res.status(500).json({ error: 'db error' });
+  return res.json({ ok: true, status: latest?.status || 'CANCELLED' });
 }
