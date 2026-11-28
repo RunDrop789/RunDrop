@@ -119,7 +119,7 @@
     const maps = {};        // orderId -> { map, layer, reqId }
     const chatTimers = {};  // orderId -> interval id
     const seenOrderIds = new Set();
-    let audioCtx = null;
+    let audioCtx = null, pendingNotificationSound = false;
 
     const $ = id => document.getElementById(id);
     const say = t => { $('msg').textContent = t || ''; };
@@ -164,16 +164,64 @@
       }
     }
 
-    // ---------- เสียงและการสั่นเมื่อมีงานใหม่ ----------
+    // ---------- เสียงแจ้งเตือนเมื่อมีงานใหม่ ----------
+    function unlockAudio() {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+          console.error('Web Audio API is unavailable');
+          return;
+        }
+        audioCtx = audioCtx || new AudioContextClass();
+        const resume = audioCtx.state === 'running' ? Promise.resolve() : audioCtx.resume();
+        resume.then(() => {
+          if (audioCtx.state !== 'running') return;
+          document.removeEventListener('pointerdown', unlockAudio);
+          if (pendingNotificationSound) {
+            pendingNotificationSound = false;
+            playNotificationTone();
+          }
+        }).catch(error => console.error('notification audio resume failed:', error));
+      } catch (error) {
+        console.error('notification audio initialization failed:', error);
+      }
+    }
+
+    document.addEventListener('pointerdown', unlockAudio);
+
+    function playNotificationTone() {
+      const oscillator = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      oscillator.frequency.value = 880;
+      gain.gain.value = 0.15;
+      oscillator.connect(gain);
+      gain.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.4);
+    }
+
     function beep() {
       try {
-        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-        const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.frequency.value = 880; g.gain.value = 0.15;
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(); o.stop(audioCtx.currentTime + 0.4);
-      } catch (e) {}
-      navigator.vibrate?.([300, 150, 300]);
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) {
+          console.error('Web Audio API is unavailable');
+          return;
+        }
+        audioCtx = audioCtx || new AudioContextClass();
+        if (audioCtx.state !== 'running') {
+          pendingNotificationSound = true;
+          audioCtx.resume().then(() => {
+            if (audioCtx.state === 'running' && pendingNotificationSound) {
+              pendingNotificationSound = false;
+              playNotificationTone();
+            }
+          }).catch(error => console.error('notification sound failed:', error));
+          return;
+        }
+        playNotificationTone();
+      } catch (error) {
+        console.error('notification sound failed:', error);
+      }
     }
     function notifyNew(orders) {
       const fresh = orders.filter(o => !seenOrderIds.has(o.id));
