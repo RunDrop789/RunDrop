@@ -281,17 +281,24 @@
       e.preventDefault();
       const body = $('chatInput').value.trim();
       if (!body) return;
-      const res = await trackFetch('/api/track?type=messages', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, phone, body })
-      });
-      if (!res.ok) {
-        const result = await res.json().catch(() => ({}));
-        $('msg').textContent = result.error || 'ส่งข้อความไม่สำเร็จ';
+      try {
+        const res = await trackFetch('/api/track?type=messages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, phone, body })
+        });
+        if (!res.ok) {
+          const result = await res.json().catch(() => ({}));
+          throw new Error(result.error || 'ส่งข้อความไม่สำเร็จ');
+        }
+      } catch (err) {
+        $('msg').textContent = err.message || 'ส่งข้อความไม่สำเร็จ';
         return;
       }
       $('chatInput').value = '';
-      loadChat();
+      $('msg').textContent = '';
+      loadChat().catch(err => {
+        $('msg').textContent = `ส่งข้อความแล้ว แต่โหลดแชทไม่สำเร็จ: ${err.message}`;
+      });
     });
 
     // ---------- เริ่มดูสถานะ (หลังยืนยันเบอร์) ----------

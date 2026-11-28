@@ -165,7 +165,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'method not allowed' });
   }
   const src = req.method === 'GET' ? req.query : (req.body || {});
-  const type = src.type || 'status';
+  const type = req.query?.type || src.type || 'status';
 
   if (type === 'list') {
     if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
