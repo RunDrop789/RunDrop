@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="config.js"></script>
+  <script src="line-session.js"></script>
   <script src="location-name.js"></script>
   <style>
     @media (max-width: 767px) {
@@ -198,6 +199,8 @@
     let vehicleRatesData = [];
     let activeTargetField = '';
     let lineIdToken = null;
+    const bookingDraftKey = 'rundrop_booking_draft';
+    const bookingTokenRetryKey = 'rundrop_booking_token_retry';
 
     // พิกัดที่ลูกค้าเลือก (จากแผนที่ หรือ autocomplete)
     const coords = { pickup: null, dropoff: null };
@@ -659,8 +662,17 @@
           })
         });
         const body = await res.json().catch(() => ({}));
+        if (res.status === 401 && /token/i.test(body.error || '')) {
+          sessionStorage.setItem(bookingDraftKey, JSON.stringify({
+            name, phone, pickupText, dropoffText, remark,
+            pickup: coords.pickup, dropoff: coords.dropoff, vehicleType: selectedType
+          }));
+          if (RunDropLineSession.reauthenticateOnce(bookingTokenRetryKey)) return;
+        }
         if (!res.ok) throw new Error(body.error || 'บันทึกไม่สำเร็จ');
 
+        RunDropLineSession.markFresh(bookingTokenRetryKey);
+        sessionStorage.removeItem(bookingDraftKey);
         localStorage.setItem('rundrop_sender_name', name);
         localStorage.setItem('rundrop_sender_phone', phone);
 
@@ -689,7 +701,7 @@
 
     // ---------- เริ่มต้นหน้า ----------
     document.addEventListener('DOMContentLoaded', async () => {
-      loadRates();
+      const ratesPromise = loadRates();
       setupPlaceSearch('pickup');
       setupPlaceSearch('dropoff');
       setupMapSearch();
@@ -707,6 +719,25 @@
         badge.classList.remove('hidden');
       }
 
+      let bookingDraft = null;
+      const savedDraft = sessionStorage.getItem(bookingDraftKey);
+      if (savedDraft) {
+        try {
+          bookingDraft = JSON.parse(savedDraft);
+          document.getElementById('senderName').value = bookingDraft.name || '';
+          document.getElementById('senderPhone').value = bookingDraft.phone || '';
+          document.getElementById('pickupLocation').value = bookingDraft.pickupText || '';
+          document.getElementById('dropoffLocation').value = bookingDraft.dropoffText || '';
+          document.getElementById('remark').value = bookingDraft.remark || '';
+          coords.pickup = bookingDraft.pickup || null;
+          coords.dropoff = bookingDraft.dropoff || null;
+          updateDistanceFromCoords();
+        } catch (err) {
+          console.error('Unable to restore booking draft:', err);
+          sessionStorage.removeItem(bookingDraftKey);
+        }
+      }
+
       const historyLink = document.getElementById('historyLink');
       historyLink.href = 'track.html';
 
@@ -720,7 +751,16 @@
         lineIdToken = liff.getIDToken();
         if (!lineIdToken) throw new Error('ไม่พบ LINE ID Token กรุณาเปิดหน้านี้ผ่าน LINE อีกครั้ง');
         document.getElementById('bookBtn').disabled = false;
-        document.getElementById('lineAuthMessage').textContent = 'เชื่อมต่อ LINE แล้ว ประวัติการเรียกรถจะผูกกับบัญชีนี้';
+        if (bookingDraft) {
+          await ratesPromise;
+          const vehicleCard = Array.from(document.querySelectorAll('.vehicle-card'))
+            .find(card => card.dataset.type === bookingDraft.vehicleType);
+          if (vehicleCard) selectVehicle(bookingDraft.vehicleType, vehicleCard);
+          document.getElementById('lineAuthMessage').textContent =
+            'เชื่อมต่อ LINE ใหม่แล้ว ข้อมูลยังอยู่ กรุณากดยืนยันการเรียกรถอีกครั้ง';
+        } else {
+          document.getElementById('lineAuthMessage').textContent = 'เชื่อมต่อ LINE แล้ว ประวัติการเรียกรถจะผูกกับบัญชีนี้';
+        }
         document.getElementById('lineAuthMessage').classList.replace('text-gray-500', 'text-green-700');
       } catch (err) {
         document.getElementById('lineAuthMessage').textContent = err.message || 'เชื่อมต่อ LINE ไม่สำเร็จ';

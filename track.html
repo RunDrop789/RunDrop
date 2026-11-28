@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="config.js"></script>
+  <script src="line-session.js"></script>
   <style>
     @media (max-width: 767px) {
       input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
@@ -96,6 +97,7 @@
     const BASE_TITLE = 'RunDrop - ติดตามงาน';
     let phone = params.get('phone') || '';
     let lineIdToken = null;
+    const trackTokenRetryKey = 'rundrop_track_token_retry';
     let map = null, driverMarker = null, routeLayer = null, pollTimer = null, waitTimer = null;
     let routeReqId = 0, lastMsgCount = -1, unreadCount = 0;
 
@@ -103,13 +105,21 @@
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     $('code').textContent = code;
 
-    function trackFetch(url, options = {}) {
+    async function trackFetch(url, options = {}) {
       const headers = { ...(options.headers || {}) };
       if (lineIdToken && window.liff?.getIDToken) {
         lineIdToken = liff.getIDToken() || lineIdToken;
       }
       if (lineIdToken) headers['x-line-id-token'] = lineIdToken;
-      return fetch(url, { ...options, headers });
+      const response = await fetch(url, { ...options, headers });
+      if (response.status === 401) {
+        const body = await response.clone().json().catch(() => ({}));
+        if (/token/i.test(body.error || '') && RunDropLineSession.reauthenticateOnce(trackTokenRetryKey)) {
+          throw new Error('กำลังเชื่อมต่อ LINE ใหม่...');
+        }
+      }
+      if (response.ok) RunDropLineSession.markFresh(trackTokenRetryKey);
+      return response;
     }
 
     async function initLine() {
