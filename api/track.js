@@ -42,31 +42,64 @@ async function handleAccount(req, res) {
   const lineUserId = await verifyLineToken(idToken);
   if (!lineUserId) return res.status(401).json({ error: 'LINE token ไม่ถูกต้อง' });
 
-  const { data, error } = await supabase
+  const date = String(req.query?.date || '');
+  let dateRange = null;
+  if (date) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+    if (!match) return res.status(400).json({ error: 'วันที่ไม่ถูกต้อง' });
+    const [, yearText, monthText, dayText] = match;
+    const utcDate = Date.UTC(Number(yearText), Number(monthText) - 1, Number(dayText));
+    if (new Date(utcDate).toISOString().slice(0, 10) !== date) {
+      return res.status(400).json({ error: 'วันที่ไม่ถูกต้อง' });
+    }
+
+    const start = utcDate - 7 * 60 * 60 * 1000;
+    dateRange = {
+      start: new Date(start).toISOString(),
+      end: new Date(start + 24 * 60 * 60 * 1000).toISOString()
+    };
+  }
+
+  const columns = 'tracking_code, status, price, pickup_place, destination, created_at';
+  let ordersQuery = supabase
     .from('orders')
-    .select('tracking_code, status, price, pickup_place, destination, created_at')
+    .select(columns)
     .eq('line_user_id', lineUserId)
     .order('created_at', { ascending: false })
-    .limit(30);
-  if (error) {
-    console.error('track account list error:', error.code);
+    .limit(1000);
+  if (dateRange) {
+    ordersQuery = ordersQuery.gte('created_at', dateRange.start).lt('created_at', dateRange.end);
+  }
+
+  const [ordersResult, currentResult] = await Promise.all([
+    ordersQuery,
+    supabase
+      .from('orders')
+      .select(columns)
+      .eq('line_user_id', lineUserId)
+      .in('status', ['NEW', 'ACCEPTED', 'PICKED_UP'])
+      .order('created_at', { ascending: false })
+      .limit(100)
+  ]);
+  if (ordersResult.error || currentResult.error) {
+    console.error('track account list error:', ordersResult.error?.code || currentResult.error?.code);
     return res.status(500).json({ error: 'โหลดประวัติไม่สำเร็จ' });
   }
 
-  const allOrders = (data || []).map(o => ({
+  const mapOrder = o => ({
     trackingCode: o.tracking_code,
     status: o.status,
     price: o.price,
     pickup: o.pickup_place,
     dropoff: o.destination,
     createdAt: o.created_at
-  }));
+  });
+  const allOrders = (ordersResult.data || []).map(mapOrder);
   const activeStatuses = new Set(['NEW', 'ACCEPTED', 'PICKED_UP']);
-  const currentOrders = allOrders.filter(o => activeStatuses.has(o.status));
   const historyOrders = allOrders.filter(o => !activeStatuses.has(o.status));
 
   return res.json({
-    currentOrders,
+    currentOrders: (currentResult.data || []).map(mapOrder),
     orders: historyOrders
   });
 }

@@ -36,6 +36,11 @@
       </div>
       <div class="bg-white rounded-2xl shadow p-4 space-y-2">
         <h2 class="text-sm font-bold text-green-900">ประวัติการเรียกรถ</h2>
+        <button id="historyToggle" type="button" class="hidden w-full rounded-lg bg-green-50 py-2 text-xs font-bold text-green-800">ดูประวัติทั้งหมดตามวันที่</button>
+        <label id="historyDateWrap" class="hidden flex items-center gap-2 text-xs font-bold">
+          เลือกวันที่
+          <input id="historyDate" type="date" class="min-w-0 flex-1 rounded-lg border p-2 text-xs">
+        </label>
         <div id="accountHistory" class="space-y-2"></div>
         <p class="text-[10px] text-gray-400">ประวัติที่สร้างก่อนผูกบัญชี LINE อาจไม่แสดง หากออร์เดอร์เดิมไม่มี LINE ID ในระบบ</p>
       </div>
@@ -120,6 +125,8 @@
     let phone = params.get('phone') || '';
     let lineIdToken = null;
     let currentOrderStatus = null;
+    let accountHistoryExpanded = false;
+    let accountHistoryRequestId = 0;
     const trackTokenRetryKey = 'rundrop_track_token_retry';
     let map = null, driverMarker = null, routeLayer = null, pollTimer = null, waitTimer = null;
     let routeReqId = 0, lastMsgCount = -1, unreadCount = 0;
@@ -177,18 +184,41 @@
         </div>`;
     }
 
+    function renderAccountHistory(orders) {
+      const visibleOrders = accountHistoryExpanded ? orders : orders.slice(0, 1);
+      $('accountHistory').innerHTML = visibleOrders.length
+        ? visibleOrders.map(renderAccountOrder).join('')
+        : `<p class="text-xs text-gray-500">${$('historyDate').value ? 'ไม่มีประวัติในวันที่เลือก' : 'ยังไม่มีประวัติการเรียกรถ'}</p>`;
+      $('historyToggle').classList.toggle('hidden', !accountHistoryExpanded && orders.length <= 1);
+      $('historyToggle').textContent = accountHistoryExpanded ? 'ซ่อนประวัติ' : 'ดูประวัติทั้งหมดตามวันที่';
+      $('historyDateWrap').classList.toggle('hidden', !accountHistoryExpanded);
+    }
+
     async function loadAccount() {
-      const res = await trackFetch('/api/track?type=account');
+      const requestId = ++accountHistoryRequestId;
+      const date = accountHistoryExpanded ? $('historyDate').value : '';
+      const dateQuery = date ? `&date=${encodeURIComponent(date)}` : '';
+      const res = await trackFetch(`/api/track?type=account${dateQuery}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'โหลดประวัติไม่สำเร็จ');
+      if (requestId !== accountHistoryRequestId) return;
       $('currentOrders').innerHTML = data.currentOrders.length
         ? data.currentOrders.map(renderAccountOrder).join('')
         : '<p class="text-xs text-gray-500">ไม่มีงานที่กำลังดำเนินการ</p>';
-      $('accountHistory').innerHTML = data.orders.length
-        ? data.orders.map(renderAccountOrder).join('')
-        : '<p class="text-xs text-gray-500">ยังไม่มีประวัติการเรียกรถ</p>';
+      renderAccountHistory(data.orders);
       $('accountMessage').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH');
     }
+
+    $('historyToggle').addEventListener('click', () => {
+      accountHistoryExpanded = !accountHistoryExpanded;
+      if (!accountHistoryExpanded) $('historyDate').value = '';
+      loadAccount().catch(error => { $('accountMessage').textContent = error.message; });
+    });
+    $('historyDate').addEventListener('change', () => {
+      if (accountHistoryExpanded) {
+        loadAccount().catch(error => { $('accountMessage').textContent = error.message; });
+      }
+    });
 
     // ---------- เสียงและ title แจ้งข้อความใหม่ ----------
     let audioCtx = null;

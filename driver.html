@@ -75,8 +75,8 @@
         </div>
       </div>
 
-      <!-- สถิติ -->
-      <div class="bg-white rounded-2xl shadow p-4 space-y-3">
+      <button id="statsToggle" type="button" class="w-full rounded-xl bg-white py-3 text-sm font-bold text-green-800 shadow" aria-expanded="false">ดูสถิติ</button>
+      <div id="statsPanel" class="hidden bg-white rounded-2xl shadow p-4 space-y-3">
         <div class="flex gap-2 text-xs font-bold">
           <button data-g="day" class="gbtn flex-1 py-1 rounded-lg">รายวัน</button>
           <button data-g="week" class="gbtn flex-1 py-1 rounded-lg">รายสัปดาห์</button>
@@ -129,23 +129,56 @@
     const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
     const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
     const SWIPE_THRESHOLD = 0.85;
-    function getLinkedOrderId() {
+    function getLiffOrderParams() {
       const params = new URLSearchParams(location.search);
-      let value = params.get('orderId');
-      if (!value) {
-        const state = params.get('liff.state');
-        if (state) {
-          const query = state.includes('?')
-            ? state.slice(state.indexOf('?') + 1)
-            : state.replace(/^[?#]/, '');
-          value = new URLSearchParams(query.split('#')[0]).get('orderId');
+      const state = params.get('liff.state') || '';
+      const queryStart = state.indexOf('?');
+      const stateQuery = queryStart >= 0
+        ? state.slice(queryStart + 1)
+        : state.replace(/^[?#]/, '');
+      const stateParams = new URLSearchParams(stateQuery.split('#')[0]);
+      const getId = value => {
+        const id = Number(value);
+        return Number.isSafeInteger(id) && id > 0 ? id : null;
+      };
+      const acceptOrderId = getId(params.get('acceptOrderId') || stateParams.get('acceptOrderId'));
+      return {
+        acceptOrderId,
+        orderId: getId(params.get('orderId') || stateParams.get('orderId')) || acceptOrderId
+      };
+    }
+    function clearAutoAcceptFromUrl() {
+      const url = new URL(location.href);
+      url.searchParams.delete('acceptOrderId');
+      const state = url.searchParams.get('liff.state');
+      if (state) {
+        const queryStart = state.indexOf('?');
+        const path = queryStart >= 0 ? state.slice(0, queryStart) : '';
+        const rawQuery = queryStart >= 0 ? state.slice(queryStart + 1) : state;
+        const stateParams = new URLSearchParams(rawQuery.split('#')[0].replace(/^[?#]/, ''));
+        stateParams.delete('acceptOrderId');
+        const remaining = stateParams.toString();
+        if (path || remaining) {
+          url.searchParams.set('liff.state', path + (remaining ? `?${remaining}` : ''));
+        } else {
+          url.searchParams.delete('liff.state');
         }
       }
 
-      const orderId = Number(value);
-      return Number.isSafeInteger(orderId) && orderId > 0 ? orderId : null;
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     }
-    let linkedOrderId = getLinkedOrderId();
+    function focusLinkedOrderCard() {
+      if (!linkedOrderId || linkedOrderFocused) return;
+      const card = document.querySelector(`[data-job-card="${linkedOrderId}"], [data-order="${linkedOrderId}"]`);
+      if (!card) return;
+      linkedOrderFocused = true;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('ring-2', 'ring-green-500');
+      setTimeout(() => card.classList.remove('ring-2', 'ring-green-500'), 5000);
+    }
+    const initialLiffOrderParams = getLiffOrderParams();
+    let linkedOrderId = initialLiffOrderParams.orderId;
+    let lineAutoAcceptOrderId = initialLiffOrderParams.acceptOrderId;
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
     let linkedOrderFocused = false;
@@ -462,6 +495,7 @@
         resolveLocationLabel(o, 'pickup', o.pickup_place, o.pickup_lat, o.pickup_lng);
         resolveLocationLabel(o, 'dropoff', o.destination, o.dropoff_lat, o.dropoff_lng);
       });
+      focusLinkedOrderCard();
     }
 
     // ---------- เส้นทางตามถนน (OSRM) ----------
@@ -751,6 +785,13 @@
     $('bars').addEventListener('click', e => {
       if (e.target.dataset.k) { selectedKey = e.target.dataset.k; renderStats(); }
     });
+    $('statsToggle').addEventListener('click', () => {
+      const expanded = $('statsPanel').classList.contains('hidden');
+      $('statsPanel').classList.toggle('hidden', !expanded);
+      $('statsToggle').textContent = expanded ? 'ซ่อนสถิติ' : 'ดูสถิติ';
+      $('statsToggle').setAttribute('aria-expanded', String(expanded));
+      if (expanded) $('statsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     document.querySelectorAll('.gbtn').forEach(b => b.addEventListener('click', () => {
       gran = b.dataset.g;
       selectedKey = null;
@@ -846,15 +887,7 @@
         resolveLocationLabel(o, 'dropoff', o.destination, o.dropoff_lat, o.dropoff_lng);
       });
       bindSwipes();
-      if (linkedOrderId && !linkedOrderFocused) {
-        const linkedCard = document.querySelector(`[data-job-card="${linkedOrderId}"]`);
-        if (linkedCard) {
-          linkedOrderFocused = true;
-          linkedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          linkedCard.classList.add('ring-2', 'ring-green-500');
-          setTimeout(() => linkedCard.classList.remove('ring-2', 'ring-green-500'), 5000);
-        }
-      }
+      focusLinkedOrderCard();
     }
 
     // ---------- พร้อมรับงาน ----------
@@ -948,7 +981,9 @@
           15000,
           'เชื่อมต่อ LINE นานเกินไป กรุณาปิดแล้วเปิดหน้านี้ใหม่'
         );
-        linkedOrderId = getLinkedOrderId() || linkedOrderId;
+        const liffOrderParams = getLiffOrderParams();
+        linkedOrderId = liffOrderParams.orderId || linkedOrderId;
+        lineAutoAcceptOrderId = liffOrderParams.acceptOrderId || lineAutoAcceptOrderId;
         if (!liff.isLoggedIn()) { liff.login(); return; }
         idToken = liff.getIDToken();
         if (!idToken) throw new Error('ไม่พบ LINE ID Token กรุณาเปิดหน้านี้ผ่าน LINE อีกครั้ง');
@@ -956,6 +991,20 @@
         const approved = await loadStatus();
         if (!approved) return;
         $('dashboard').classList.remove('hidden');
+        if (lineAutoAcceptOrderId) {
+          const orderId = lineAutoAcceptOrderId;
+          lineAutoAcceptOrderId = null;
+          clearAutoAcceptFromUrl();
+          try {
+            const { order } = await api('/api/driver?action=accept', {
+              method: 'POST',
+              body: JSON.stringify({ orderId })
+            });
+            say(`รับงาน ${order.tracking_code} แล้ว`);
+          } catch (error) {
+            say(error.message);
+          }
+        }
         startRealtime();
         refresh().catch(e => say(e.message)).finally(startGps);
         pollTimer = setInterval(() => refresh().catch(err => say(err.message)), 5000);
