@@ -103,6 +103,19 @@
     </div>
   </div>
 
+  <div id="driverCancelModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="driverCancelTitle">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl space-y-3">
+      <h2 id="driverCancelTitle" class="text-sm font-bold text-red-700">ยกเลิกงาน</h2>
+      <p class="text-xs text-gray-600">งานจะถูกยกเลิกและลูกค้าต้องเรียกรถใหม่ กรุณาระบุเหตุผล ระบบจะบันทึกไว้ในแชท</p>
+      <textarea id="driverCancelReason" maxlength="250" rows="3" class="w-full rounded-lg border p-2 text-sm" placeholder="เหตุผลที่ยกเลิก"></textarea>
+      <p id="driverCancelError" class="hidden text-xs text-red-600"></p>
+      <div class="flex gap-2">
+        <button id="driverCancelDismiss" type="button" class="flex-1 rounded-lg bg-gray-200 py-2 text-xs font-bold">กลับ</button>
+        <button id="driverCancelConfirm" type="button" class="flex-1 rounded-lg bg-red-600 py-2 text-xs font-bold text-white">ยืนยันยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const LIFF_ID = window.LIFF_ID_DRIVER;
     const TZ = 'Asia/Bangkok';
@@ -114,7 +127,7 @@
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
     let renderedActiveSignature = null, refreshInProgress = false, refreshQueued = false;
-    let pendingAction = null, camStream = null, camCallback = null;
+    let pendingAction = null, pendingCancelOrderId = null, camStream = null, camCallback = null;
     let pollTimer = null, rt = null, rtClient = null, realtimeTimer = null, realtimeRetryTimer = null;
     const maps = {};        // orderId -> { map, layer, reqId }
     const chatTimers = {};  // orderId -> interval id
@@ -407,6 +420,7 @@
           <p class="text-xs">ลูกค้า: ${esc(o.customer_name)} · <a href="tel:${esc(o.phone)}" class="text-green-700 font-bold">โทรหาลูกค้า</a></p>
           <div id="map-${o.id}" class="h-48 rounded-xl border"></div>
           ${hasNav ? `<a href="${navUrl}" target="_blank" rel="noopener" class="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-lg">${navText}</a>` : ''}
+          ${o.status === 'ACCEPTED' ? `<button type="button" data-cancel="${o.id}" class="w-full rounded-lg border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-700">ยกเลิกงาน</button>` : ''}
           ${n ? `<button data-advance="${o.id}" class="w-full bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 rounded-lg">${n.label}</button>` : ''}
           <div>
             <h3 class="text-xs font-bold mb-1">แชทกับลูกค้า</h3>
@@ -547,6 +561,64 @@
           $('confirmModal').classList.add('flex');
         } catch (err) { say(err.message); }
       });
+    });
+
+    function closeDriverCancelModal() {
+      $('driverCancelModal').classList.add('hidden');
+      $('driverCancelModal').classList.remove('flex');
+      pendingCancelOrderId = null;
+    }
+
+    $('activeList').addEventListener('click', e => {
+      const btn = e.target.closest('[data-cancel]');
+      if (!btn) return;
+      const orderId = Number(btn.dataset.cancel);
+      const order = activeOrders.find(item => item.id === orderId);
+      if (!order || order.status !== 'ACCEPTED') return;
+      pendingCancelOrderId = orderId;
+      $('driverCancelReason').value = '';
+      $('driverCancelError').textContent = '';
+      $('driverCancelError').classList.add('hidden');
+      $('driverCancelModal').classList.remove('hidden');
+      $('driverCancelModal').classList.add('flex');
+    });
+
+    $('driverCancelDismiss').addEventListener('click', closeDriverCancelModal);
+    $('driverCancelModal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeDriverCancelModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !$('driverCancelModal').classList.contains('hidden')) {
+        closeDriverCancelModal();
+      }
+    });
+    $('driverCancelConfirm').addEventListener('click', async () => {
+      const reason = $('driverCancelReason').value.trim();
+      if (!reason) {
+        $('driverCancelError').textContent = 'กรุณาระบุเหตุผลในการยกเลิก';
+        $('driverCancelError').classList.remove('hidden');
+        return;
+      }
+      const orderId = pendingCancelOrderId;
+      if (!orderId) return;
+
+      const confirmButton = $('driverCancelConfirm');
+      confirmButton.disabled = true;
+      try {
+        const result = await api('/api/driver?action=cancel', {
+          method: 'POST',
+          body: JSON.stringify({ orderId, reason })
+        });
+        if (result.status !== 'CANCELLED') throw new Error('ยกเลิกงานไม่สำเร็จ');
+        closeDriverCancelModal();
+        say('ยกเลิกงานแล้ว');
+        await refresh();
+      } catch (err) {
+        $('driverCancelError').textContent = err.message || 'ยกเลิกงานไม่สำเร็จ';
+        $('driverCancelError').classList.remove('hidden');
+      } finally {
+        confirmButton.disabled = false;
+      }
     });
 
     $('confirmNo').addEventListener('click', () => {

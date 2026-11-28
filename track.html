@@ -43,6 +43,7 @@
     <div id="waiting" class="hidden bg-white rounded-2xl shadow p-4 space-y-2 text-center">
       <p class="text-sm font-bold text-red-600">กำลังเรียกรถ</p>
       <p class="text-xs text-gray-500">เหลือเวลา <span id="countdown" class="font-bold">15:00</span></p>
+      <button id="cancelWaitingButton" type="button" class="hidden w-full rounded-lg border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-700">ยกเลิกการเรียกรถ</button>
       <div id="noDriver" class="hidden space-y-2">
         <p class="text-sm font-bold text-red-600">ไม่พบคนขับในขณะนี้</p>
         <p class="text-xs text-gray-600">ระบบค้นหาคนขับให้แล้ว 15 นาที แต่ยังไม่มีคนขับว่างรับงานตามประเภทรถที่เลือก</p>
@@ -58,6 +59,7 @@
       <p id="status" class="text-sm font-bold text-red-600"></p>
       <p id="driver" class="text-xs text-gray-600"></p>
       <p id="gpsTime" class="text-[11px] text-gray-400"></p>
+      <button id="cancelOrderButton" type="button" class="hidden w-full rounded-lg border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-700">ยกเลิกงาน</button>
     </div>
 
     <!-- กรอกเบอร์ยืนยัน -->
@@ -82,6 +84,22 @@
     </div>
   </div>
 
+  <div id="cancelModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="cancelModalTitle">
+    <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl space-y-3">
+      <h2 id="cancelModalTitle" class="text-sm font-bold text-red-700"></h2>
+      <p id="cancelModalMessage" class="text-xs text-gray-600"></p>
+      <div id="cancelReasonWrap" class="hidden space-y-1">
+        <label for="cancelReasonInput" class="text-xs font-bold">เหตุผลที่ยกเลิก</label>
+        <textarea id="cancelReasonInput" maxlength="250" rows="3" class="w-full rounded-lg border p-2 text-sm" placeholder="ระบุเหตุผล (ไม่เกิน 250 ตัวอักษร)"></textarea>
+      </div>
+      <p id="cancelModalError" class="hidden text-xs text-red-600"></p>
+      <div class="flex gap-2">
+        <button id="cancelDismiss" type="button" class="flex-1 rounded-lg bg-gray-200 py-2 text-xs font-bold">กลับ</button>
+        <button id="cancelConfirm" type="button" class="flex-1 rounded-lg bg-red-600 py-2 text-xs font-bold text-white">ยืนยันยกเลิก</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const params = new URLSearchParams(location.search);
     const code = params.get('code') || '';
@@ -97,6 +115,7 @@
     const BASE_TITLE = 'RunDrop - ติดตามงาน';
     let phone = params.get('phone') || '';
     let lineIdToken = null;
+    let currentOrderStatus = null;
     const trackTokenRetryKey = 'rundrop_track_token_retry';
     let map = null, driverMarker = null, routeLayer = null, pollTimer = null, waitTimer = null;
     let routeReqId = 0, lastMsgCount = -1, unreadCount = 0;
@@ -201,6 +220,7 @@
       $('status').textContent = STATUS_TH[d.order.status] || d.order.status;
       $('status').classList.toggle('text-red-600', d.order.status === 'NEW');
       $('status').classList.toggle('text-green-800', d.order.status !== 'NEW');
+      setCancelButtons(d.order.status);
       $('driver').textContent = d.driver
         ? `คนขับ: ${d.driver.name} · ${d.driver.vehicle} · ${d.driver.plate}`
         : 'ยังไม่มีคนขับรับงาน';
@@ -209,6 +229,84 @@
       drawMap(d);
       return d;
     }
+
+    function setCancelButtons(status) {
+      currentOrderStatus = status;
+      $('cancelOrderButton').classList.toggle('hidden', !['NEW', 'ACCEPTED'].includes(status));
+      $('cancelWaitingButton').classList.toggle('hidden', status !== 'NEW');
+    }
+
+    function showCancelModal(requiresReason) {
+      $('cancelModalTitle').textContent = requiresReason ? 'ยกเลิกงานที่มีคนขับรับแล้ว' : 'ยืนยันยกเลิกการเรียกรถ';
+      $('cancelModalMessage').textContent = requiresReason
+        ? 'กรุณาระบุเหตุผล ระบบจะบันทึกไว้ในแชทของงาน'
+        : 'ต้องการยกเลิกงานนี้หรือไม่?';
+      $('cancelReasonWrap').classList.toggle('hidden', !requiresReason);
+      $('cancelReasonInput').value = '';
+      $('cancelModalError').textContent = '';
+      $('cancelModalError').classList.add('hidden');
+      $('cancelModal').classList.remove('hidden');
+      $('cancelModal').classList.add('flex');
+    }
+
+    function closeCancelModal() {
+      $('cancelModal').classList.add('hidden');
+      $('cancelModal').classList.remove('flex');
+    }
+
+    async function submitCancellation() {
+      const reason = $('cancelReasonInput').value.trim();
+      const requiresReason = currentOrderStatus === 'ACCEPTED';
+      if (requiresReason && !reason) {
+        $('cancelModalError').textContent = 'กรุณาระบุเหตุผลในการยกเลิก';
+        $('cancelModalError').classList.remove('hidden');
+        return;
+      }
+
+      const confirmButton = $('cancelConfirm');
+      confirmButton.disabled = true;
+      try {
+        const res = await trackFetch('/api/order-cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, phone, reason })
+        });
+        const result = await res.json().catch(() => ({}));
+        if (result.code === 'REASON_REQUIRED') {
+          setCancelButtons('ACCEPTED');
+          showCancelModal(true);
+          $('cancelModalError').textContent = 'คนขับรับงานแล้ว กรุณาระบุเหตุผล';
+          $('cancelModalError').classList.remove('hidden');
+          return;
+        }
+        if (!res.ok) throw new Error(result.error || 'ยกเลิกงานไม่สำเร็จ');
+        if (result.status !== 'CANCELLED') throw new Error('สถานะงานเปลี่ยนแล้ว ไม่สามารถยกเลิกได้');
+
+        closeCancelModal();
+        clearInterval(waitTimer);
+        waitTimer = null;
+        $('waiting').classList.add('hidden');
+        $('noDriver').classList.add('hidden');
+        await load();
+        startTracking();
+      } catch (err) {
+        $('cancelModalError').textContent = err.message || 'ยกเลิกงานไม่สำเร็จ';
+        $('cancelModalError').classList.remove('hidden');
+      } finally {
+        confirmButton.disabled = false;
+      }
+    }
+
+    $('cancelOrderButton').addEventListener('click', () => showCancelModal(currentOrderStatus === 'ACCEPTED'));
+    $('cancelWaitingButton').addEventListener('click', () => showCancelModal(currentOrderStatus === 'ACCEPTED'));
+    $('cancelDismiss').addEventListener('click', closeCancelModal);
+    $('cancelConfirm').addEventListener('click', submitCancellation);
+    $('cancelModal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeCancelModal();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !$('cancelModal').classList.contains('hidden')) closeCancelModal();
+    });
 
     function drawMap(d) {
       if (!map) {
@@ -350,6 +448,8 @@
       if (params.get('wait') === '1') {
         $('waiting').classList.remove('hidden');
         $('verify').classList.add('hidden');
+        setCancelButtons('NEW');
+        $('cancelOrderButton').classList.add('hidden');
         let deadline = Date.now() + WAIT_MS;
         let waitCheckInProgress = false;
 
@@ -370,6 +470,7 @@
             if (res.ok && d.order.status === 'CANCELLED') {
               clearInterval(waitTimer);
               $('countdown').textContent = '00:00';
+              setCancelButtons('CANCELLED');
               $('noDriver').classList.remove('hidden');
               return;
             }
@@ -395,9 +496,19 @@
                 body: JSON.stringify({ code, phone })
               });
               const result = await res.json().catch(() => ({}));
+              if (result.code === 'REASON_REQUIRED') {
+                $('waiting').classList.add('hidden');
+                await load();
+                startTracking();
+                showCancelModal(true);
+                $('cancelModalError').textContent = 'คนขับรับงานแล้ว กรุณาระบุเหตุผล';
+                $('cancelModalError').classList.remove('hidden');
+                return;
+              }
               if (!res.ok) throw new Error(result.error || 'ยกเลิกงานที่หมดเวลาไม่สำเร็จ');
               if (result.status === 'CANCELLED') {
                 $('countdown').textContent = '00:00';
+                setCancelButtons('CANCELLED');
                 $('noDriver').classList.remove('hidden');
               } else {
                 $('waiting').classList.add('hidden');

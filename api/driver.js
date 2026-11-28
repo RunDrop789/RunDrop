@@ -10,6 +10,7 @@ import jobsHandler from '../lib/driver/jobs.js';
 import statusUpdateHandler from '../lib/driver/status-update.js';
 import messagesHandler from '../lib/driver/messages.js';
 import photoHandler from '../lib/driver/photo.js';
+import cancelHandler from '../lib/driver/cancel.js';
 
 const ACTIONS = {
   me: meHandler,
@@ -23,7 +24,8 @@ const ACTIONS = {
   jobs: jobsHandler,
   'status-update': statusUpdateHandler,
   messages: messagesHandler,
-  photo: photoHandler
+  photo: photoHandler,
+  cancel: cancelHandler
 };
 
 export default async function handler(req, res) {
