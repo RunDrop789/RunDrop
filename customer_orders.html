@@ -374,7 +374,14 @@
 
       setTimeout(() => {
         if (!pickerMap) {
-          pickerMap = L.map('pickerMap').setView(DEFAULT_CENTER, 15);
+          pickerMap = L.map('pickerMap', {
+            zoomControl: false,
+            scrollWheelZoom: false,
+            doubleClickZoom: false,
+            boxZoom: false,
+            touchZoom: false,
+            keyboard: false
+          }).setView(DEFAULT_CENTER, 13);
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors'
@@ -421,7 +428,7 @@
         (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          if (pickerMap) pickerMap.setView([lat, lng], 17);
+          if (pickerMap) pickerMap.panTo([lat, lng]);
           setPickedPoint(lat, lng);
         },
         (err) => {
@@ -485,7 +492,7 @@
     function goToPlace(place) {
       const lat = parseFloat(place.lat);
       const lng = parseFloat(place.lon);
-      if (pickerMap) pickerMap.setView([lat, lng], 17);
+      if (pickerMap) pickerMap.panTo([lat, lng]);
       setPickedPoint(lat, lng);
       document.getElementById('mapSearchResults').classList.add('hidden');
       document.getElementById('mapSearchInput').value = place.display_name;

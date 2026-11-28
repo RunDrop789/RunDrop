@@ -9,6 +9,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
   <style>
     .swipe-thumb { transition: transform .2s ease; }
     .swipe-track.dragging .swipe-thumb { transition: none; }
@@ -91,8 +92,8 @@
 
   <script>
     const LIFF_ID = '2012603605-C9Lh060m';
-    const SUPABASE_URL = 'https://ddekswonarcgackfgfxc.supabase.co';
-    const SUPABASE_ANON_KEY = 'ใส่ anon/publishable key ของโปรเจกต์';
+    const SUPABASE_URL = window.SUPABASE_URL;
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
     const TZ = 'Asia/Bangkok';
     const MAX_ACTIVE = 2;
     const STATUS_TH = { ACCEPTED: 'รับงานแล้ว กำลังไปรับของ', PICKED_UP: 'รับของแล้ว กำลังไปส่ง', DELIVERED: 'ส่งแล้ว' };
@@ -102,7 +103,7 @@
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
     let pendingAction = null, camStream = null, camCallback = null;
-    let pollTimer = null, rt = null;
+    let pollTimer = null, rt = null, realtimeTimer = null;
     const maps = {};        // orderId -> { map, layer, reqId }
     const chatTimers = {};  // orderId -> interval id
     const seenOrderIds = new Set();
@@ -148,15 +149,25 @@
     });
 
     // ---------- Realtime: ใช้เป็นสัญญาณเท่านั้น ข้อมูลจริงมาจาก API ----------
+    function scheduleRealtimeRefresh() {
+      clearTimeout(realtimeTimer);
+      realtimeTimer = setTimeout(() => refresh().catch(() => {}), 250);
+    }
+
     function startRealtime() {
       if (rt) return;
       try {
         rt = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
           .channel('orders-signal')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-            loadAvailable().catch(() => {});
+            scheduleRealtimeRefresh();
           })
-          .subscribe();
+          .subscribe((status, err) => {
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              rt = null;
+              console.error('realtime subscribe failed:', err || status);
+            }
+          });
       } catch (e) {
         rt = null;
       }
@@ -607,7 +618,7 @@
         startGps();
         startRealtime();
         await refresh();
-        pollTimer = setInterval(refresh, 30000);
+        pollTimer = setInterval(() => refresh().catch(() => {}), 10000);
       } catch (err) {
         say(err.message || 'ไม่สามารถเชื่อมต่อ LINE ได้');
       }

@@ -118,13 +118,17 @@ export default async function handler(req, res) {
   try {
     const b = req.body || {};
 
+    const lineUserId = String(
+  b.lineUserId || ''
+).trim();
+
     const name = String(b.name || '')
       .trim()
       .slice(0, 100);
 
     const phone = String(b.phone || '')
       .replace(/\s/g, '');
-
+ 
     const rawVehicleType = String(
       b.vehicleType || ''
     );
@@ -234,6 +238,7 @@ export default async function handler(req, res) {
         {
           customer_name: name,
           phone,
+          line_user_id: lineUserId,
           vehicle_type: vehicleType,
           pickup_place:
             pickupText ||

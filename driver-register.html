@@ -253,6 +253,8 @@
 
       const idCard = document.getElementById('idCard').value.trim();
       if (!/^\d{13}$/.test(idCard)) { showMessage('เลขบัตรประชาชนต้องมี 13 หลัก', true); return; }
+      const phone = document.getElementById('phone').value.trim();
+      if (!/^0\d{8,9}$/.test(phone)) { showMessage('เบอร์โทรศัพท์ไม่ถูกต้อง', true); return; }
       if (!document.getElementById('consent').checked) { showMessage('กรุณายินยอมก่อนส่งใบสมัคร', true); return; }
 
       const fileError = validateFiles();
