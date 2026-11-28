@@ -109,9 +109,9 @@
     const SWIPE_THRESHOLD = 0.85;
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
-    let renderedActiveSignature = null, refreshInProgress = false;
+    let renderedActiveSignature = null, refreshInProgress = false, refreshQueued = false;
     let pendingAction = null, camStream = null, camCallback = null;
-    let pollTimer = null, rt = null, realtimeTimer = null;
+    let pollTimer = null, rt = null, rtClient = null, realtimeTimer = null, realtimeRetryTimer = null;
     const maps = {};        // orderId -> { map, layer, reqId }
     const chatTimers = {};  // orderId -> interval id
     const seenOrderIds = new Set();
@@ -175,31 +175,61 @@
       }
     }
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) document.title = 'RunDrop - หน้าคนขับ';
+      if (!document.hidden) {
+        document.title = 'RunDrop - หน้าคนขับ';
+        scheduleRealtimeRefresh();
+      }
     });
 
     // ---------- Realtime: ใช้เป็นสัญญาณเท่านั้น ข้อมูลจริงมาจาก API ----------
     function scheduleRealtimeRefresh() {
       clearTimeout(realtimeTimer);
-      realtimeTimer = setTimeout(() => refresh().catch(() => {}), 250);
+      realtimeTimer = setTimeout(() => {
+        if (refreshInProgress) {
+          refreshQueued = true;
+          return;
+        }
+        refresh().catch(err => say(err.message));
+      }, 250);
+    }
+
+    function retryRealtime() {
+      if (realtimeRetryTimer) return;
+      realtimeRetryTimer = setTimeout(() => {
+        realtimeRetryTimer = null;
+        startRealtime();
+      }, 5000);
     }
 
     function startRealtime() {
       if (rt) return;
       try {
-        rt = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
-          .channel('orders-signal')
+        rtClient = rtClient || supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+        const channel = rtClient.channel('orders-signal');
+        rt = channel;
+        channel
           .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
             scheduleRealtimeRefresh();
           })
           .subscribe((status, err) => {
-            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              rt = null;
+            if (status === 'SUBSCRIBED') {
+              clearTimeout(realtimeRetryTimer);
+              realtimeRetryTimer = null;
+              scheduleRealtimeRefresh();
+            } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)) {
               console.error('realtime subscribe failed:', err || status);
+              if (rt !== channel) return;
+              rt = null;
+              rtClient.removeChannel(channel).catch(removeError => {
+                console.error('realtime channel cleanup failed:', removeError);
+              });
+              retryRealtime();
             }
           });
-      } catch (e) {
+      } catch (error) {
         rt = null;
+        console.error('realtime setup failed:', error);
+        retryRealtime();
       }
     }
 
@@ -731,6 +761,10 @@
         }
       } finally {
         refreshInProgress = false;
+        if (refreshQueued) {
+          refreshQueued = false;
+          scheduleRealtimeRefresh();
+        }
       }
     }
 
@@ -752,7 +786,7 @@
         $('dashboard').classList.remove('hidden');
         startRealtime();
         refresh().catch(e => say(e.message)).finally(startGps);
-        pollTimer = setInterval(() => refresh().catch(() => {}), 5000);
+        pollTimer = setInterval(() => refresh().catch(err => say(err.message)), 5000);
       } catch (err) {
         say(err.message || 'ไม่สามารถเชื่อมต่อ LINE ได้');
       }
