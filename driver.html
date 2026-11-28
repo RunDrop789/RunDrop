@@ -129,7 +129,23 @@
     const NEXT = { ACCEPTED: { to: 'PICKED_UP', label: 'รับสินค้าแล้ว' }, PICKED_UP: { to: 'DELIVERED', label: 'ส่งสินค้าแล้ว' } };
     const DOC_TH = { id_card: 'บัตรประชาชน', driver_license: 'ใบขับขี่', criminal_record: 'ใบตรวจประวัติอาชญากรรม', selfie: 'รูปถ่ายหน้า' };
     const SWIPE_THRESHOLD = 0.85;
-    const linkedOrderId = Number(new URLSearchParams(location.search).get('orderId')) || null;
+    function getLinkedOrderId() {
+      const params = new URLSearchParams(location.search);
+      let value = params.get('orderId');
+      if (!value) {
+        const state = params.get('liff.state');
+        if (state) {
+          const query = state.includes('?')
+            ? state.slice(state.indexOf('?') + 1)
+            : state.replace(/^[?#]/, '');
+          value = new URLSearchParams(query.split('#')[0]).get('orderId');
+        }
+      }
+
+      const orderId = Number(value);
+      return Number.isSafeInteger(orderId) && orderId > 0 ? orderId : null;
+    }
+    let linkedOrderId = getLinkedOrderId();
 
     let idToken = null, activeOrders = [], history = [], gran = 'day', selectedKey = null;
     let linkedOrderFocused = false;
@@ -932,6 +948,7 @@
           15000,
           'เชื่อมต่อ LINE นานเกินไป กรุณาปิดแล้วเปิดหน้านี้ใหม่'
         );
+        linkedOrderId = getLinkedOrderId() || linkedOrderId;
         if (!liff.isLoggedIn()) { liff.login(); return; }
         idToken = liff.getIDToken();
         if (!idToken) throw new Error('ไม่พบ LINE ID Token กรุณาเปิดหน้านี้ผ่าน LINE อีกครั้ง');
