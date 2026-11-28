@@ -320,6 +320,7 @@ export default async function handler(req, res) {
         pickupText: pickupText || `พิกัด: ${pickup.lat.toFixed(6)}, ${pickup.lng.toFixed(6)}`,
         dropoffText: dropoffText || `พิกัด: ${dropoff.lat.toFixed(6)}, ${dropoff.lng.toFixed(6)}`,
         vehicleType,
+        distanceKm: km,
         price,
         customerPhotoPath
       });
