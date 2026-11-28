@@ -52,6 +52,20 @@ async function reply(replyToken, text) {
   if (!response.ok) throw new Error(`LINE reply failed (${response.status})`);
 }
 
+async function updateLineFollower(event) {
+  const lineUserId = event.source?.userId;
+  if (!lineUserId) return;
+
+  const { error } = await supabase
+    .from('line_followers')
+    .upsert({
+      line_user_id: lineUserId,
+      is_following: event.type === 'follow',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'line_user_id' });
+  if (error) throw new Error(`Could not update LINE follower state (${error.code || 'database error'})`);
+}
+
 async function getPendingDriver(driverId) {
   const { data: driver, error } = await supabase
     .from('drivers')
@@ -185,7 +199,7 @@ export default async function handler(req, res) {
 
   const channelSecret = process.env.LINE_CHANNEL_SECRET;
   const adminUserId = process.env.DRIVER_ADMIN_LINE_USER_ID;
-  if (!channelSecret || !adminUserId) {
+  if (!channelSecret) {
     console.error('LINE driver review webhook is missing required environment configuration');
     return res.status(500).json({ error: 'webhook configuration missing' });
   }
@@ -207,7 +221,11 @@ export default async function handler(req, res) {
 
   try {
     for (const event of payload.events || []) {
-      if (event.source?.userId !== adminUserId) continue;
+      if (event.type === 'follow' || event.type === 'unfollow') {
+        await updateLineFollower(event);
+        continue;
+      }
+      if (!adminUserId || event.source?.userId !== adminUserId) continue;
       if (event.type === 'postback') {
         await handlePostback(event, adminUserId);
       } else if (event.type === 'message' && event.message?.type === 'text') {
