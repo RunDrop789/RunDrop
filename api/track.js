@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js';
+import { verifyLineToken } from '../lib/lineVerify.js';
 
 const CODE_RE = /^RD-[A-Z0-9]{6}$/;
 const PHONE_RE = /^0\d{8,9}$/;
@@ -34,6 +35,48 @@ async function handleList(req, res, src) {
   });
 }
 
+async function handleAccount(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
+  const idToken = req.headers['x-line-id-token'];
+  if (!idToken) return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบ LINE' });
+  const lineUserId = await verifyLineToken(idToken);
+  if (!lineUserId) return res.status(401).json({ error: 'LINE token ไม่ถูกต้อง' });
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select('tracking_code, status, price, pickup_place, destination, created_at')
+    .eq('line_user_id', lineUserId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  if (error) {
+    console.error('track account list error:', error.code);
+    return res.status(500).json({ error: 'โหลดประวัติไม่สำเร็จ' });
+  }
+
+  const orders = (data || []).map(o => ({
+    trackingCode: o.tracking_code,
+    status: o.status,
+    price: o.price,
+    pickup: o.pickup_place,
+    dropoff: o.destination,
+    createdAt: o.created_at
+  }));
+  const activeStatuses = new Set(['NEW', 'ACCEPTED', 'PICKED_UP']);
+
+  return res.json({
+    currentOrders: orders.filter(o => activeStatuses.has(o.status)),
+    orders
+  });
+}
+
+async function canAccessOrder(req, order, phone) {
+  if (PHONE_RE.test(phone) && order.phone === phone) return true;
+  const idToken = req.headers['x-line-id-token'];
+  if (!idToken || !order.line_user_id) return false;
+  const lineUserId = await verifyLineToken(idToken);
+  return lineUserId === order.line_user_id;
+}
+
 async function handleStatus(req, res, src) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
 
@@ -43,14 +86,14 @@ async function handleStatus(req, res, src) {
 
   const { data: o, error } = await supabase
     .from('orders')
-    .select('id, tracking_code, status, price, phone, pickup_place, destination, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, driver_id')
+    .select('id, tracking_code, status, price, phone, line_user_id, pickup_place, destination, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, driver_id')
     .eq('tracking_code', code)
     .maybeSingle();
   if (error) {
     console.error('track find error:', error.code);
     return res.status(500).json({ error: 'db error' });
   }
-  if (!o || o.phone !== phone) return res.status(404).json({ error: 'ไม่พบงาน หรือเบอร์ไม่ตรง' });
+  if (!o || !(await canAccessOrder(req, o, phone))) return res.status(404).json({ error: 'ไม่พบงาน หรือไม่มีสิทธิ์ดูงานนี้' });
 
   let driver = null;
   if (o.driver_id) {
@@ -90,9 +133,9 @@ async function handleMessages(req, res, src) {
   if (!CODE_RE.test(code)) return res.status(400).json({ error: 'รหัสติดตามไม่ถูกต้อง' });
 
   const { data: o, error: findErr } = await supabase
-    .from('orders').select('id, phone').eq('tracking_code', code).maybeSingle();
+    .from('orders').select('id, phone, line_user_id').eq('tracking_code', code).maybeSingle();
   if (findErr) return res.status(500).json({ error: 'db error' });
-  if (!o || o.phone !== phone) return res.status(404).json({ error: 'ไม่พบงาน' });
+  if (!o || !(await canAccessOrder(req, o, phone))) return res.status(404).json({ error: 'ไม่พบงาน หรือไม่มีสิทธิ์ดูงานนี้' });
 
   if (req.method === 'GET') {
     const { data, error } = await supabase
@@ -125,6 +168,7 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'method not allowed' });
     return handleList(req, res, src);
   }
+  if (type === 'account') return handleAccount(req, res);
   if (type === 'messages') return handleMessages(req, res, src);
   return handleStatus(req, res, src);
 }

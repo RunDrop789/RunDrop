@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { verifyLineToken } from '../lib/lineVerify.js';
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -118,9 +119,14 @@ export default async function handler(req, res) {
   try {
     const b = req.body || {};
 
-    const lineUserId = String(
-  b.lineUserId || ''
-).trim();
+    const idToken = req.headers['x-line-id-token'];
+    if (!idToken) {
+      return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบ LINE ก่อนเรียกรถ' });
+    }
+    const lineUserId = await verifyLineToken(idToken);
+    if (!lineUserId) {
+      return res.status(401).json({ error: 'LINE token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่' });
+    }
 
     const name = String(b.name || '')
       .trim()

@@ -8,6 +8,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="config.js"></script>
   <style>
     .vehicle-card.selected {
@@ -116,9 +117,11 @@
         </div>
 
         <button type="submit" id="bookBtn"
-          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow-md transition text-sm">
+          disabled
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl shadow-md transition text-sm disabled:opacity-60">
           ยืนยันการเรียกรถ
         </button>
+        <p id="lineAuthMessage" class="text-[11px] text-center text-gray-500">กำลังเชื่อมต่อ LINE...</p>
       </form>
     </div>
 
@@ -180,6 +183,7 @@
     // ---------- ตัวแปรหลัก ----------
     let vehicleRatesData = [];
     let activeTargetField = '';
+    let lineIdToken = null;
 
     // พิกัดที่ลูกค้าเลือก (จากแผนที่ หรือ autocomplete)
     const coords = { pickup: null, dropoff: null };
@@ -607,13 +611,17 @@
       }
 
       const btn = document.getElementById('bookBtn');
+      if (!lineIdToken) {
+        alert('กรุณาเข้าสู่ระบบ LINE ก่อนเรียกรถ');
+        return;
+      }
       btn.disabled = true;
       btn.textContent = 'กำลังส่งข้อมูล...';
 
       try {
         const res = await fetch('/api/orders', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-line-id-token': lineIdToken },
           body: JSON.stringify({
             name, phone, vehicleType: selectedType,
             pickupText, dropoffText,
@@ -652,7 +660,7 @@
     }
 
     // ---------- เริ่มต้นหน้า ----------
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
       loadRates();
       setupPlaceSearch('pickup');
       setupPlaceSearch('dropoff');
@@ -672,8 +680,23 @@
       }
 
       const historyLink = document.getElementById('historyLink');
-      if (savedPhone) {
-        historyLink.href = 'track.html?phone=' + encodeURIComponent(savedPhone);
+      historyLink.href = 'track.html';
+
+      try {
+        await liff.init({ liffId: window.LIFF_ID_DRIVER });
+        if (!liff.isLoggedIn()) {
+          document.getElementById('lineAuthMessage').textContent = 'กำลังเปิดหน้าเข้าสู่ระบบ LINE...';
+          liff.login();
+          return;
+        }
+        lineIdToken = liff.getIDToken();
+        if (!lineIdToken) throw new Error('ไม่พบ LINE ID Token กรุณาเปิดหน้านี้ผ่าน LINE อีกครั้ง');
+        document.getElementById('bookBtn').disabled = false;
+        document.getElementById('lineAuthMessage').textContent = 'เชื่อมต่อ LINE แล้ว ประวัติการเรียกรถจะผูกกับบัญชีนี้';
+        document.getElementById('lineAuthMessage').classList.replace('text-gray-500', 'text-green-700');
+      } catch (err) {
+        document.getElementById('lineAuthMessage').textContent = err.message || 'เชื่อมต่อ LINE ไม่สำเร็จ';
+        document.getElementById('lineAuthMessage').classList.replace('text-gray-500', 'text-red-600');
       }
     });
   </script>
