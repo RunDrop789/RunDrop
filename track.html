@@ -45,7 +45,7 @@
 
     <!-- โหมดรอคนขับ -->
     <div id="waiting" class="hidden bg-white rounded-2xl shadow p-4 space-y-2 text-center">
-      <p class="text-sm font-bold text-red-600">กำลังเรียกรถ</p>
+      <p class="text-sm font-bold text-blue-600">กำลังเรียกรถ</p>
       <p class="text-xs text-gray-500">เหลือเวลา <span id="countdown" class="font-bold">15:00</span></p>
       <button id="cancelWaitingButton" type="button" class="hidden w-full rounded-lg border border-red-300 bg-red-50 py-2 text-xs font-bold text-red-700">ยกเลิกการเรียกรถ</button>
       <div id="noDriver" class="hidden space-y-2">
@@ -126,6 +126,11 @@
 
     const $ = id => document.getElementById(id);
     const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    function statusColorClass(status, defaultClass) {
+      if (status === 'NEW') return 'text-blue-600';
+      if (status === 'CANCELLED') return 'text-red-600';
+      return defaultClass;
+    }
     $('code').textContent = code;
 
     async function trackFetch(url, options = {}) {
@@ -163,7 +168,7 @@
         <div class="border rounded-xl p-3 space-y-1">
           <div class="flex justify-between gap-2 text-xs">
             <span class="font-bold text-green-900">${esc(o.trackingCode)}</span>
-            <span class="font-bold text-green-700">${esc(STATUS_TH[o.status] || o.status)}</span>
+            <span class="font-bold ${statusColorClass(o.status, 'text-green-700')}">${esc(STATUS_TH[o.status] || o.status)}</span>
           </div>
           <p class="text-[11px] text-gray-500">${esc(createdAt)} · ${esc(o.price)} ฿</p>
           <p class="text-[11px]">รับ: ${esc(o.pickup)}</p>
@@ -222,8 +227,8 @@
       $('verify').classList.add('hidden');
       $('panel').classList.remove('hidden');
       $('status').textContent = STATUS_TH[d.order.status] || d.order.status;
-      $('status').classList.toggle('text-red-600', d.order.status === 'NEW');
-      $('status').classList.toggle('text-green-800', d.order.status !== 'NEW');
+      $('status').classList.remove('text-blue-600', 'text-red-600', 'text-green-800');
+      $('status').classList.add(statusColorClass(d.order.status, 'text-green-800'));
       setCancelButtons(d.order.status);
       $('driver').textContent = d.driver
         ? `คนขับ: ${d.driver.name} · ${d.driver.vehicle} · ${d.driver.plate}`
