@@ -134,6 +134,8 @@
     }
 
     async function api(path, opt = {}) {
+      const currentToken = liff.getIDToken();
+      if (currentToken) idToken = currentToken;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
       try {
