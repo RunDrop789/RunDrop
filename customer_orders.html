@@ -690,7 +690,7 @@
       historyLink.href = 'track.html';
 
       try {
-        await liff.init({ liffId: window.LIFF_ID_DRIVER });
+        await liff.init({ liffId: window.LIFF_ID_MAIN });
         if (!liff.isLoggedIn()) {
           document.getElementById('lineAuthMessage').textContent = 'กำลังเปิดหน้าเข้าสู่ระบบ LINE...';
           liff.login();

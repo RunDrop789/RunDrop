@@ -104,7 +104,7 @@
     }
 
     async function initLine() {
-      await liff.init({ liffId: window.LIFF_ID_DRIVER });
+      await liff.init({ liffId: window.LIFF_ID_MAIN });
       if (!liff.isLoggedIn()) {
         liff.login();
         return false;
