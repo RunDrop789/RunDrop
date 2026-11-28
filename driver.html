@@ -56,14 +56,17 @@
       <!-- งานที่กำลังทำ (สูงสุด 2 งาน) -->
       <div id="activeList" class="space-y-4"></div>
 
-      <!-- กล้อง (ถ่ายสดเท่านั้น) -->
-      <div id="cameraBox" class="hidden bg-white rounded-2xl shadow p-4 space-y-2">
-        <p id="cameraTitle" class="text-xs font-bold text-green-900"></p>
-        <video id="camVideo" autoplay playsinline muted class="w-full rounded-xl bg-black h-56 object-cover"></video>
-        <canvas id="camCanvas" class="hidden"></canvas>
-        <div class="flex gap-2">
-          <button id="camShoot" class="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded-lg">📷 ถ่ายรูป</button>
-          <button id="camCancel" class="flex-1 bg-gray-200 text-xs font-bold py-2 rounded-lg">ยกเลิก</button>
+      <!-- Camera capture modal -->
+      <div id="cameraBox" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/60 p-4"
+        role="dialog" aria-modal="true" aria-labelledby="cameraTitle">
+        <div class="w-full max-w-sm max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl bg-white p-4 shadow-xl space-y-3">
+          <p id="cameraTitle" class="text-sm font-bold text-green-900"></p>
+          <video id="camVideo" autoplay playsinline muted class="w-full rounded-xl bg-black h-56 max-h-[55vh] object-cover"></video>
+          <canvas id="camCanvas" class="hidden"></canvas>
+          <div class="flex gap-2">
+            <button id="camShoot" class="flex-1 bg-green-600 text-white text-sm font-bold py-3 rounded-lg">📷 ถ่ายรูป</button>
+            <button id="camCancel" class="flex-1 bg-gray-200 text-sm font-bold py-3 rounded-lg">ยกเลิก</button>
+          </div>
         </div>
       </div>
 
@@ -420,6 +423,8 @@
       camCallback = onCapture;
       $('cameraTitle').textContent = title;
       $('cameraBox').classList.remove('hidden');
+      $('cameraBox').classList.add('flex');
+      document.body.classList.add('overflow-hidden');
       try {
         camStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { exact: 'environment' } }, audio: false
@@ -436,10 +441,18 @@
       camStream = null;
       $('camVideo').srcObject = null;
       $('cameraBox').classList.add('hidden');
+      $('cameraBox').classList.remove('flex');
+      document.body.classList.remove('overflow-hidden');
       camCallback = null;
     }
 
     $('camCancel').addEventListener('click', closeCamera);
+    $('cameraBox').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeCamera();
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !$('cameraBox').classList.contains('hidden')) closeCamera();
+    });
 
     $('camShoot').addEventListener('click', () => {
       const v = $('camVideo'), c = $('camCanvas');
